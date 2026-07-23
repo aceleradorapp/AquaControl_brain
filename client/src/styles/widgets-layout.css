@@ -1,0 +1,168 @@
+/* Layout de Widgets Movivel + Modo Compacto (20-espc) — alca de arrastar, cartoes
+   compactos uniformes e o modal expandido que eles abrem. Mantem a estetica Sci-Fi HUD
+   (tokens de theme.css, mesmo painel chanfrado de hud.css). */
+
+.widget-slot {
+    display: flex;
+    flex-direction: column;
+    /* Sobe visualmente enquanto e arrastado (dnd-kit so translada via transform; o resto
+       fica por conta daqui) — sem isso o card arrastado ficava "atras" dos outros. */
+    position: relative;
+    z-index: 1;
+}
+.widget-slot--arrastando {
+    z-index: 20;
+    opacity: 0.45;
+}
+
+/* --- Alca de arrastar: barra fina acima do card, nunca sobrepoe nada do widget em si --- */
+.widget-slot__grip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 16px;
+    background: rgba(var(--cor-primaria-rgb), 0.05);
+    border: 1px solid var(--cor-borda);
+    border-bottom: none;
+    color: var(--cor-texto-secundario);
+    cursor: grab;
+    opacity: 0.65;
+    transition: opacity 0.2s ease, color 0.2s ease, background 0.2s ease;
+    /* Essencial pro dnd-kit funcionar bem em touch (tablets) — sem isso o navegador tenta
+       rolar a pagina em vez de iniciar o arrasto. */
+    touch-action: none;
+}
+.widget-slot__grip:hover {
+    opacity: 1;
+    color: var(--cor-primaria);
+    background: rgba(var(--cor-primaria-rgb), 0.14);
+}
+.widget-slot__grip:active {
+    cursor: grabbing;
+}
+
+/* --- Cartao compacto (Modo Compacto) — mesmo formato/medida pra qualquer widget --- */
+.widget-slot__card-compacto {
+    width: 100%;
+    height: 108px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--cor-texto);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.widget-slot__card-compacto:hover {
+    border-color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+    transform: translateY(-2px);
+}
+.widget-slot__card-icone {
+    color: var(--cor-primaria);
+    display: flex;
+    filter: drop-shadow(0 0 4px rgba(var(--cor-primaria-rgb), 0.5));
+}
+.widget-slot__card-titulo {
+    font-family: var(--fonte-titulo);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 0 10px;
+    line-height: 1.3;
+}
+.widget-slot__card-resumo {
+    font-family: var(--fonte-mono);
+    font-size: 0.62rem;
+    color: var(--cor-texto-secundario);
+    text-align: center;
+    padding: 0 8px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Coluna vira uma mini-grade de cartoes do mesmo tamanho no Modo Compacto — em vez da
+   pilha vertical de largura total do modo normal. */
+.coluna--compacta {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: var(--espaco-md);
+    align-content: start;
+}
+.coluna--compacta .widget-slot {
+    height: 100%;
+}
+
+/* Colunas sempre com uma altura minima — garante que uma coluna vazia (todos os widgets
+   dela movidos pra outro lugar) continue sendo um alvo valido pra soltar algo ali. */
+.coluna {
+    min-height: 60px;
+}
+
+/* --- Preview flutuante enquanto arrasta (DragOverlay do dnd-kit) --- */
+.widget-slot__overlay {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: 10px 16px;
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-primaria);
+    color: var(--cor-primaria);
+    font-family: var(--fonte-titulo);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: var(--glow-cyan-md);
+    cursor: grabbing;
+}
+
+/* --- Modal Expandido (cartao compacto -> widget inteiro, centralizado) --- */
+.widget-expandido__backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 9, 20, 0.78);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--espaco-md);
+    z-index: 150;
+}
+.widget-expandido__conteudo {
+    position: relative;
+    width: 100%;
+    max-width: 720px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.widget-expandido__fechar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda-forte);
+    color: var(--cor-primaria);
+    cursor: pointer;
+    box-shadow: var(--glow-cyan-sm);
+    transition: box-shadow 0.2s ease;
+}
+.widget-expandido__fechar:hover {
+    box-shadow: var(--glow-cyan-md);
+}
+
+/* --- Botao de alternar Normal/Compacto no header --- */
+.botao-icone--modo-compacto.ativo {
+    color: var(--cor-alerta);
+    border-color: var(--cor-alerta);
+    box-shadow: 0 0 6px rgba(255, 202, 40, 0.4);
+}

@@ -1,4 +1,4 @@
-import { Activity, CalendarClock, CircuitBoard, LayoutGrid, Menu, Siren, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
+import { Activity, CalendarClock, CircuitBoard, LayoutGrid, Maximize2, Menu, Minimize2, Siren, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
 import { useRelogio } from '../hooks/useRelogio';
 
 function formatarHora(data) {
@@ -24,6 +24,12 @@ function formatarData(data) {
 // Menu de Ações, por consistência com a convenção de 14_menu_de_acoes.md. "Agendamentos"
 // (18-espc) abre o ModalAgendamento (Novo Agendamento) direto — o Widget Tatico de
 // Agendamentos completo fica na tela principal, ver Dashboard.jsx.
+//
+// Modo Compacto (20-espc, layout movivel — so monitores/tablets): alterna TODOS os widgets
+// entre o formato cheio (normal) e um cartao pequeno e uniforme que abre em modal ao
+// clicar (ver WidgetSlot.jsx) — o icone/estado do botao reflete qual modo esta ativo agora
+// (Maximize2 = "esta compacto, clique pra expandir todos"; Minimize2 = "esta normal,
+// clique pra compactar").
 export default function HeaderTatico({
     backendOnline,
     latenciaMs,
@@ -34,6 +40,8 @@ export default function HeaderTatico({
     modoPanico,
     onAtivarPanico,
     onNormalizar,
+    modoCompacto,
+    onAlternarModoCompacto,
 }) {
     const agora = useRelogio();
 
@@ -88,6 +96,17 @@ export default function HeaderTatico({
 
                 <button className="botao-icone" onClick={onAbrirMenu} type="button" title="Menu de acoes" aria-label="Menu de acoes">
                     <Menu size={16} />
+                </button>
+
+                <button
+                    className={`botao-icone botao-icone--modo-compacto ${modoCompacto ? 'ativo' : ''}`}
+                    onClick={onAlternarModoCompacto}
+                    type="button"
+                    title={modoCompacto ? 'Modo Compacto ativo — clique para expandir todos os widgets' : 'Ativar Modo Compacto'}
+                    aria-label="Alternar Modo Compacto"
+                    aria-pressed={modoCompacto}
+                >
+                    {modoCompacto ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
                 </button>
 
                 <button className="botao-icone" onClick={onAbrirWidgets} type="button" title="Personalizar tela / widgets" aria-label="Personalizar tela / widgets">

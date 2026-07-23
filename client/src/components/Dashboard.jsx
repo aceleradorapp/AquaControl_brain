@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Settings, Sparkles, LayoutGrid, CircuitBoard, CalendarClock } from 'lucide-react';
+import { DndContext, DragOverlay, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
+import {
+    Settings,
+    Sparkles,
+    LayoutGrid,
+    CircuitBoard,
+    CalendarClock,
+    Gauge,
+    Thermometer,
+    Power,
+    Grid3x3,
+    Server,
+    QrCode,
+    Terminal,
+} from 'lucide-react';
 import HeaderTatico from './HeaderTatico';
-import SensorGauge from './SensorGauge';
-import BarraEnergiaHud from './BarraEnergiaHud';
+import PainelParametrosVitais from './PainelParametrosVitais';
 import GraficoTemperatura from './GraficoTemperatura';
 import PainelEquipamentos from './PainelEquipamentos';
 import ModulosControladores from './ModulosControladores';
@@ -18,13 +32,32 @@ import EsquematicoInterativo from './EsquematicoInterativo';
 import AgendamentosWidget from './AgendamentosWidget';
 import ModalAgendamento from './ModalAgendamento';
 import ModalTimer from './ModalTimer';
+import ColunaWidgets from './ColunaWidgets';
 import { gerarHistoricoMensal, gerarHistoricoTemperatura, gerarUmidadeInicial } from '../utils/mockData';
 import '../styles/dashboard.css';
 import '../styles/agendamentos.css';
+import '../styles/widgets-layout.css';
 
 let proximoIdLog = 1;
 
 const CHAVE_LOCALSTORAGE_WIDGETS = 'aquacontrol_brain_widgets_visiveis';
+// Layout movivel + Modo Compacto (20-espc, só monitores/tablets — sem preocupação especial
+// com telas de celular aqui). Cada MODO tem seu proprio arranjo salvo, independente um do
+// outro (20.1-espc: antes era uma unica chave compartilhada — reorganizar no Modo Compacto
+// bagunçava o Normal e vice-versa, ja que os dois liam/escreviam o mesmo lugar). Independe
+// de "visibilidadeWidgets" (show/hide), que continua decidindo só se o widget aparece ou
+// não; um widget escondido mantém o lugar dele no layout do modo atual, reaparece na mesma
+// posição se reativado em Layout/Widgets (ver ColunaWidgets.jsx).
+const CHAVE_LOCALSTORAGE_LAYOUT_LEGADO = 'aquacontrol_brain_layout_widgets'; // pre-20.1-espc, um layout so
+const CHAVE_LOCALSTORAGE_LAYOUT_NORMAL = 'aquacontrol_brain_layout_widgets_normal';
+const CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO = 'aquacontrol_brain_layout_widgets_compacto';
+const CHAVE_LOCALSTORAGE_MODO_COMPACTO = 'aquacontrol_brain_modo_compacto';
+const COLUNAS = ['coluna0', 'coluna1', 'coluna2'];
+const LAYOUT_PADRAO = {
+    coluna0: ['parametrosVitais', 'historicoTermico'],
+    coluna1: ['centralAquario', 'matrizReles', 'temas', 'agendamentos'],
+    coluna2: ['modulosControladores', 'qrcodes', 'systemLog'],
+};
 
 const VISIBILIDADE_PADRAO = {
     parametrosVitais: true,
@@ -37,6 +70,55 @@ const VISIBILIDADE_PADRAO = {
     temas: true,
     agendamentos: true,
 };
+
+// Preserva a posição salva de cada widget (filtrando chaves que não existem mais) e insere,
+// no fim da coluna padrão dele, qualquer widget novo (ex.: adicionado numa atualização
+// futura) que ainda não apareça em nenhuma coluna do layout salvo — nunca perde um widget
+// "engolido" por esquecimento.
+function normalizarLayout(bruto) {
+    const chavesValidas = new Set(Object.keys(VISIBILIDADE_PADRAO));
+    const layout = { coluna0: [], coluna1: [], coluna2: [] };
+    const vistas = new Set();
+
+    for (const coluna of COLUNAS) {
+        const lista = Array.isArray(bruto?.[coluna]) ? bruto[coluna] : [];
+        for (const chave of lista) {
+            if (chavesValidas.has(chave) && !vistas.has(chave)) {
+                layout[coluna].push(chave);
+                vistas.add(chave);
+            }
+        }
+    }
+
+    for (const coluna of COLUNAS) {
+        for (const chave of LAYOUT_PADRAO[coluna]) {
+            if (chavesValidas.has(chave) && !vistas.has(chave)) {
+                layout[coluna].push(chave);
+                vistas.add(chave);
+            }
+        }
+    }
+
+    return layout;
+}
+
+// "chave" e a chave especifica do modo (normal OU compacto); se ainda não existe nada
+// salvo nela (primeira vez que este modo é usado), cai pro layout único antigo — assim
+// quem já tinha organizado o dashboard antes desta mudança não perde o arranjo, ele so
+// passa a valer como ponto de partida pros dois modos, que dai em diante divergem
+// independentemente conforme o usuario mexe em cada um.
+function carregarLayoutSalvo(chave) {
+    try {
+        const salvo = localStorage.getItem(chave) ?? localStorage.getItem(CHAVE_LOCALSTORAGE_LAYOUT_LEGADO);
+        return normalizarLayout(salvo ? JSON.parse(salvo) : LAYOUT_PADRAO);
+    } catch {
+        return normalizarLayout(LAYOUT_PADRAO);
+    }
+}
+
+function carregarModoCompactoSalvo() {
+    return localStorage.getItem(CHAVE_LOCALSTORAGE_MODO_COMPACTO) === 'true';
+}
 
 function carregarVisibilidadeSalva() {
     try {
@@ -91,6 +173,22 @@ export default function Dashboard() {
     const [umidadeAr, setUmidadeAr] = useState(gerarUmidadeInicial);
     const [logs, setLogs] = useState([]);
     const [visibilidadeWidgets, setVisibilidadeWidgets] = useState(carregarVisibilidadeSalva);
+    // Layout movivel + Modo Compacto (20-espc, layouts independentes no 20.1-espc) —
+    // "layoutNormal"/"layoutCompacto" guardam, CADA UM, em qual coluna e em que ordem cada
+    // widget esta NAQUELE modo; "modoCompacto" alterna entre o widget cheio (normal) e um
+    // cartao pequeno e uniforme que abre em modal ao clicar (ver HeaderTatico.jsx/
+    // ColunaWidgets.jsx/WidgetSlot.jsx). "chaveArrastando" so existe enquanto um drag esta
+    // em andamento, pra desenhar o preview flutuante (DragOverlay).
+    const [layoutNormal, setLayoutNormal] = useState(() => carregarLayoutSalvo(CHAVE_LOCALSTORAGE_LAYOUT_NORMAL));
+    const [layoutCompacto, setLayoutCompacto] = useState(() => carregarLayoutSalvo(CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO));
+    const [modoCompacto, setModoCompacto] = useState(carregarModoCompactoSalvo);
+    const [chaveArrastando, setChaveArrastando] = useState(null);
+    // "layoutWidgets"/"setLayoutWidgets" apontam pro layout do modo ATUAL — toda a logica de
+    // arrasto abaixo (aoArrastarSobre/aoFinalizarArrasto/encontrarColunaDoWidget) so conhece
+    // esse par generico, sem precisar saber em qual modo esta; trocar de modo troca pra qual
+    // state real eles apontam, automaticamente.
+    const layoutWidgets = modoCompacto ? layoutCompacto : layoutNormal;
+    const setLayoutWidgets = modoCompacto ? setLayoutCompacto : setLayoutNormal;
     const [modalPortasAberto, setModalPortasAberto] = useState(false);
     const [modalWidgetsAberto, setModalWidgetsAberto] = useState(false);
     const [modalCriarTemaAberto, setModalCriarTemaAberto] = useState(false);
@@ -668,6 +766,82 @@ export default function Dashboard() {
         });
     }
 
+    // Modo Compacto (20-espc): so alterna um boolean persistido — quem muda de fato o
+    // visual e a logica de clique-pra-expandir e o WidgetSlot.jsx.
+    function alternarModoCompacto() {
+        setModoCompacto((atual) => {
+            const novo = !atual;
+            localStorage.setItem(CHAVE_LOCALSTORAGE_MODO_COMPACTO, String(novo));
+            return novo;
+        });
+    }
+
+    // Layout movivel (20-espc): sensores do dnd-kit — PointerSensor cobre mouse/touch/caneta
+    // (Pointer Events), com uma distancia minima de ativacao pra nao confundir um toque/
+    // clique normal na alca com o inicio de um arrasto.
+    const sensoresDrag = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+    function encontrarColunaDoWidget(chave) {
+        return COLUNAS.find((coluna) => layoutWidgets[coluna].includes(chave));
+    }
+
+    function aoIniciarArrasto(evento) {
+        setChaveArrastando(evento.active.id);
+    }
+
+    // Arrastando por CIMA de outra coluna (ainda em andamento, nao finalizado) — move o
+    // widget pra la na hora, dando o feedback visual imediato de "encaixou aqui" (mesmo
+    // padrao de "multiplos containers" do dnd-kit). "over.id" pode ser outro widget (solta
+    // do lado dele) ou o id da propria coluna (solta numa area vazia).
+    function aoArrastarSobre(evento) {
+        const { active, over } = evento;
+        if (!over) return;
+
+        const colunaOrigem = encontrarColunaDoWidget(active.id);
+        const colunaDestino = COLUNAS.includes(over.id) ? over.id : encontrarColunaDoWidget(over.id);
+        if (!colunaOrigem || !colunaDestino || colunaOrigem === colunaDestino) return;
+
+        setLayoutWidgets((atual) => {
+            const origem = [...atual[colunaOrigem]];
+            const indiceOrigem = origem.indexOf(active.id);
+            if (indiceOrigem === -1) return atual;
+            origem.splice(indiceOrigem, 1);
+
+            const destino = [...atual[colunaDestino]];
+            const indiceDestino = destino.indexOf(over.id);
+            destino.splice(indiceDestino === -1 ? destino.length : indiceDestino, 0, active.id);
+
+            return { ...atual, [colunaOrigem]: origem, [colunaDestino]: destino };
+        });
+    }
+
+    // Solta de vez — se ainda estiver na MESMA coluna que comecou, reordena pela posicao
+    // final (arrayMove); mover entre colunas ja foi resolvido ao vivo em aoArrastarSobre.
+    function aoFinalizarArrasto(evento) {
+        const { active, over } = evento;
+        setChaveArrastando(null);
+        if (!over) return;
+
+        const coluna = encontrarColunaDoWidget(active.id);
+        if (!coluna) return;
+
+        setLayoutWidgets((atual) => {
+            const chaves = atual[coluna];
+            const indiceAtivo = chaves.indexOf(active.id);
+            const indiceSobre = chaves.indexOf(over.id);
+            if (indiceAtivo === -1 || indiceSobre === -1 || indiceAtivo === indiceSobre) return atual;
+            return { ...atual, [coluna]: arrayMove(chaves, indiceAtivo, indiceSobre) };
+        });
+    }
+
+    useEffect(() => {
+        localStorage.setItem(CHAVE_LOCALSTORAGE_LAYOUT_NORMAL, JSON.stringify(layoutNormal));
+    }, [layoutNormal]);
+
+    useEffect(() => {
+        localStorage.setItem(CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO, JSON.stringify(layoutCompacto));
+    }, [layoutCompacto]);
+
     // Central do Aquario (13/14-espc): só as portas MAPEADAS (nome preenchido) — nada de
     // mock. "filtroEquipamentos" decide se mostra as habilitadas (default, "ativos") ou as
     // desabilitadas ("bloqueados", só visibilidade — ver PainelEquipamentos.jsx). Status vem
@@ -695,6 +869,118 @@ export default function Dashboard() {
     const valorAguaAtual = dados24h.agua[dados24h.agua.length - 1].valor;
     const valorAmbienteAtual = dados24h.ambiente[dados24h.ambiente.length - 1].valor;
 
+    // Registro de Widgets (20-espc, layout movivel + Modo Compacto): CADA widget do
+    // Dashboard descrito como dado (titulo/icone/resumo/render), nao mais JSX fixo — e o que
+    // permite ColunaWidgets.jsx/WidgetSlot.jsx desenharem qualquer um deles de forma
+    // generica (inteiro no modo normal, como cartao compacto + modal no Modo Compacto) sem
+    // precisar saber nada sobre o conteudo especifico de cada um. "resumo" (opcional) e a
+    // linha pequena que aparece no cartao compacto — só o suficiente pra saber o que é sem
+    // abrir; widgets sem um resumo obvio simplesmente não mostram essa linha.
+    const registroWidgets = {
+        parametrosVitais: {
+            titulo: 'Parametros Vitais',
+            icone: <Gauge size={20} />,
+            resumo: `${valorAguaAtual.toFixed(1)}°C · ${valorAmbienteAtual.toFixed(1)}°C`,
+            render: () => <PainelParametrosVitais valorAgua={valorAguaAtual} valorAmbiente={valorAmbienteAtual} umidadeAr={umidadeAr} />,
+        },
+        historicoTermico: {
+            titulo: 'Historico Termico',
+            icone: <Thermometer size={20} />,
+            render: () => <GraficoTemperatura dados24h={dados24h} dados30d={dados30d} />,
+        },
+        centralAquario: {
+            titulo: 'Central do Aquario',
+            icone: <Power size={20} />,
+            resumo: `${equipamentosExibidos.filter((e) => e.ativo).length}/${equipamentosExibidos.length} ativo(s)`,
+            render: () => (
+                <PainelEquipamentos
+                    equipamentos={equipamentosExibidos}
+                    onAlternar={alternarEquipamento}
+                    onConfigurarSaidas={() => setModalPortasAberto(true)}
+                    moduloAtuador={moduloAtuador}
+                    conectado={!!estadoReles}
+                    filtro={filtroEquipamentos}
+                    onAlternarFiltro={setFiltroEquipamentos}
+                />
+            ),
+        },
+        matrizReles: {
+            titulo: 'Diagnostico de Reles (16CH)',
+            icone: <Grid3x3 size={20} />,
+            render: () => (
+                <MatrizReles16CH
+                    moduloAtuador={moduloAtuador}
+                    estadoReles={estadoReles}
+                    portas={portasMapeamento}
+                    onAlternarPorta={alternarPorta}
+                    onLigarTodos={() => acionarTodasAsPortas(true)}
+                    onDesligarTodos={() => acionarTodasAsPortas(false)}
+                />
+            ),
+        },
+        temas: {
+            titulo: 'Temas',
+            icone: <Sparkles size={20} />,
+            resumo: temas.find((t) => t.ativo)?.nome ?? (temas.length > 0 ? `${temas.length} tema(s)` : null),
+            render: () => (
+                <PainelTemas
+                    moduloAtuador={moduloAtuador}
+                    temas={temas}
+                    onAbrirCriarTema={abrirCriarTema}
+                    onEditar={abrirEdicaoTema}
+                    onAplicar={aplicarTema}
+                    onRemover={removerTema}
+                />
+            ),
+        },
+        agendamentos: {
+            titulo: 'Agendamentos',
+            icone: <CalendarClock size={20} />,
+            resumo: estadoAgendamentos?.overrideAtivo ? 'Override ativo' : `${agendamentos.length} cadastrado(s)`,
+            render: () => (
+                <AgendamentosWidget
+                    moduloAtuador={moduloAtuador}
+                    agendamentos={agendamentos}
+                    timers={timers}
+                    estado={estadoAgendamentos}
+                    onNovoAgendamento={abrirNovoAgendamento}
+                    onEditarAgendamento={abrirEdicaoAgendamento}
+                    onExcluirAgendamento={excluirAgendamento}
+                    onAlternarAtivo={alternarAtivoAgendamento}
+                    onNovoTimer={abrirNovoTimer}
+                    onCancelarTimer={cancelarTimer}
+                    onRetomarAgendamento={retomarAgendamento}
+                />
+            ),
+        },
+        modulosControladores: {
+            titulo: 'Modulos de Controladores',
+            icone: <Server size={20} />,
+            resumo: `${modulos.length} modulo(s)`,
+            render: () => (
+                <ModulosControladores
+                    modulos={modulos}
+                    onCriar={criarModulo}
+                    onRemover={removerModulo}
+                    carregando={carregandoModulos}
+                    erro={erroModulos}
+                    onAbrirEsquematico={() => setModalEsquematicoAberto(true)}
+                />
+            ),
+        },
+        qrcodes: {
+            titulo: 'QR Codes',
+            icone: <QrCode size={20} />,
+            render: () => <PainelQrCodes />,
+        },
+        systemLog: {
+            titulo: 'System Log',
+            icone: <Terminal size={20} />,
+            resumo: logs.length > 0 ? `${logs.length} evento(s)` : null,
+            render: () => <TerminalLogs entradas={logs} />,
+        },
+    };
+
     // Menu de Acoes (14-espc): acesso permanente a qualquer tela de configuracao, mesmo com
     // o widget correspondente escondido em Layout/Widgets. IMPORTANTE (ver
     // 01-espc-geral/14_menu_de_acoes.md): toda nova funcionalidade/modal de configuracao
@@ -719,95 +1005,43 @@ export default function Dashboard() {
                 modoPanico={modoPanico}
                 onAtivarPanico={ativarModoPanico}
                 onNormalizar={normalizarSistema}
+                modoCompacto={modoCompacto}
+                onAlternarModoCompacto={alternarModoCompacto}
             />
 
-            <div className="dashboard__colunas">
-                <section className="coluna">
-                    {visibilidadeWidgets.parametrosVitais && (
-                        <div className="hud-painel gauges-painel">
-                            <div className="painel-cabecalho">
-                                <h2 className="hud-titulo">Parametros Vitais</h2>
-                                <span className="hud-tag">SENSOR.ARRAY</span>
-                            </div>
-                            <div className="gauges-painel__grid">
-                                <SensorGauge titulo="AGUA" valor={valorAguaAtual} cor="var(--cor-primaria)" />
-                                <SensorGauge titulo="AMBIENTE" valor={valorAmbienteAtual} cor="var(--cor-laranja)" />
-                            </div>
-                            <hr className="hud-linha" />
-                            <BarraEnergiaHud titulo="UMIDADE DO AR" valor={umidadeAr} cor="var(--cor-secundaria)" />
+            {/* Layout movivel + Modo Compacto (20-espc) — as 3 colunas viram droppables/
+                sortables do dnd-kit; qual widget mora em qual coluna/posicao vem de
+                "layoutWidgets" (persistido), nao mais fixo no JSX. Ver ColunaWidgets.jsx e
+                WidgetSlot.jsx pro que renderiza cada widget de fato. */}
+            <DndContext
+                sensors={sensoresDrag}
+                collisionDetection={closestCenter}
+                onDragStart={aoIniciarArrasto}
+                onDragOver={aoArrastarSobre}
+                onDragEnd={aoFinalizarArrasto}
+            >
+                <div className="dashboard__colunas">
+                    {COLUNAS.map((coluna) => (
+                        <ColunaWidgets
+                            key={coluna}
+                            id={coluna}
+                            chaves={layoutWidgets[coluna]}
+                            registro={registroWidgets}
+                            visibilidade={visibilidadeWidgets}
+                            modoCompacto={modoCompacto}
+                        />
+                    ))}
+                </div>
+
+                <DragOverlay>
+                    {chaveArrastando && registroWidgets[chaveArrastando] ? (
+                        <div className="widget-slot__overlay">
+                            {registroWidgets[chaveArrastando].icone}
+                            <span>{registroWidgets[chaveArrastando].titulo}</span>
                         </div>
-                    )}
-
-                    {visibilidadeWidgets.historicoTermico && <GraficoTemperatura dados24h={dados24h} dados30d={dados30d} />}
-                </section>
-
-                <section className="coluna">
-                    {visibilidadeWidgets.centralAquario && (
-                        <PainelEquipamentos
-                            equipamentos={equipamentosExibidos}
-                            onAlternar={alternarEquipamento}
-                            onConfigurarSaidas={() => setModalPortasAberto(true)}
-                            moduloAtuador={moduloAtuador}
-                            conectado={!!estadoReles}
-                            filtro={filtroEquipamentos}
-                            onAlternarFiltro={setFiltroEquipamentos}
-                        />
-                    )}
-
-                    {visibilidadeWidgets.matrizReles && (
-                        <MatrizReles16CH
-                            moduloAtuador={moduloAtuador}
-                            estadoReles={estadoReles}
-                            portas={portasMapeamento}
-                            onAlternarPorta={alternarPorta}
-                            onLigarTodos={() => acionarTodasAsPortas(true)}
-                            onDesligarTodos={() => acionarTodasAsPortas(false)}
-                        />
-                    )}
-
-                    {visibilidadeWidgets.temas && (
-                        <PainelTemas
-                            moduloAtuador={moduloAtuador}
-                            temas={temas}
-                            onAbrirCriarTema={abrirCriarTema}
-                            onEditar={abrirEdicaoTema}
-                            onAplicar={aplicarTema}
-                            onRemover={removerTema}
-                        />
-                    )}
-
-                    {visibilidadeWidgets.agendamentos && (
-                        <AgendamentosWidget
-                            moduloAtuador={moduloAtuador}
-                            agendamentos={agendamentos}
-                            timers={timers}
-                            estado={estadoAgendamentos}
-                            onNovoAgendamento={abrirNovoAgendamento}
-                            onEditarAgendamento={abrirEdicaoAgendamento}
-                            onExcluirAgendamento={excluirAgendamento}
-                            onAlternarAtivo={alternarAtivoAgendamento}
-                            onNovoTimer={abrirNovoTimer}
-                            onCancelarTimer={cancelarTimer}
-                            onRetomarAgendamento={retomarAgendamento}
-                        />
-                    )}
-                </section>
-
-                <section className="coluna">
-                    {visibilidadeWidgets.modulosControladores && (
-                        <ModulosControladores
-                            modulos={modulos}
-                            onCriar={criarModulo}
-                            onRemover={removerModulo}
-                            carregando={carregandoModulos}
-                            erro={erroModulos}
-                            onAbrirEsquematico={() => setModalEsquematicoAberto(true)}
-                        />
-                    )}
-                    {visibilidadeWidgets.qrcodes && <PainelQrCodes />}
-                    {visibilidadeWidgets.systemLog && <TerminalLogs entradas={logs} />}
-                </section>
-            </div>
+                    ) : null}
+                </DragOverlay>
+            </DndContext>
 
             <ModalMapeamentoPortas
                 aberto={modalPortasAberto}
