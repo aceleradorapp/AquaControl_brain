@@ -1,4 +1,4 @@
-import { Activity, LayoutGrid, Menu, Siren, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
+import { Activity, CalendarClock, CircuitBoard, LayoutGrid, Menu, Siren, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
 import { useRelogio } from '../hooks/useRelogio';
 
 function formatarHora(data) {
@@ -19,8 +19,22 @@ function formatarData(data) {
 // de Pânico/Normalizar já é funcional: aciona ativarModoPanico/normalizarSistema lá do
 // Dashboard, que desliga os relés de verdade e retinta o tema (ver ".dashboard--panico").
 // O botão de Menu (14-espc) abre o Menu de Ações (ModalMenuAcoes.jsx) — acesso permanente a
-// qualquer tela de configuração, mesmo com o widget correspondente escondido.
-export default function HeaderTatico({ backendOnline, latenciaMs, onAbrirWidgets, onAbrirMenu, modoPanico, onAtivarPanico, onNormalizar }) {
+// qualquer tela de configuração, mesmo com o widget correspondente escondido. O botão
+// "Esquematico" (16-espc) abre o Esquematico Interativo — também tem entrada duplicada no
+// Menu de Ações, por consistência com a convenção de 14_menu_de_acoes.md. "Agendamentos"
+// (18-espc) abre o ModalAgendamento (Novo Agendamento) direto — o Widget Tatico de
+// Agendamentos completo fica na tela principal, ver Dashboard.jsx.
+export default function HeaderTatico({
+    backendOnline,
+    latenciaMs,
+    onAbrirWidgets,
+    onAbrirMenu,
+    onAbrirEsquematico,
+    onAbrirAgendamentos,
+    modoPanico,
+    onAtivarPanico,
+    onNormalizar,
+}) {
     const agora = useRelogio();
 
     return (
@@ -63,6 +77,14 @@ export default function HeaderTatico({ backendOnline, latenciaMs, onAbrirWidgets
                         PANICO
                     </button>
                 )}
+
+                <button className="botao-icone" onClick={onAbrirEsquematico} type="button" title="Esquematico Interativo" aria-label="Esquematico Interativo">
+                    <CircuitBoard size={16} />
+                </button>
+
+                <button className="botao-icone" onClick={onAbrirAgendamentos} type="button" title="Novo Agendamento" aria-label="Novo Agendamento">
+                    <CalendarClock size={16} />
+                </button>
 
                 <button className="botao-icone" onClick={onAbrirMenu} type="button" title="Menu de acoes" aria-label="Menu de acoes">
                     <Menu size={16} />

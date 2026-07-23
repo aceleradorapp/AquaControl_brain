@@ -47,8 +47,15 @@ async function consultarReles(req, res) {
     }
 }
 
+// origens reconhecidas pro histórico (13/15-espc): "manual" (default, clique direto/Ligar
+// ou Desligar Todos), "automatico" (Modo Panico), "teste" (toggle "Testar ao vivo" no modal
+// de Criar/Editar Tema — ver ModalCriarTema.jsx). "tema" também existe mas só é usado
+// internamente por aplicarRelesNoModulo a partir de temasController.js, nunca vindo direto
+// de uma requisição HTTP a esta rota.
+const ORIGENS_RECONHECIDAS = ['automatico', 'teste'];
+
 // POST /api/modulos/:id/reles — repassa o comando de acionamento (array de 16 posições)
-// pro ESP32 de verdade. Body esperado: { "reles": [1,0,1,...], "origem": "manual"|"automatico" }
+// pro ESP32 de verdade. Body esperado: { "reles": [1,0,1,...], "origem": "manual"|"automatico"|"teste" }
 // (16 posições; "origem" é opcional, default "manual" — usado só pro histórico). A lógica
 // de verdade (bloqueio de portas desabilitadas + histórico) fica em relesService.js
 // (14-espc), compartilhada com a aplicação de Temas — ver temasController.js.
@@ -64,7 +71,7 @@ async function acionarReles(req, res) {
     if (!Array.isArray(relesRecebidos)) {
         return res.status(400).json({ erro: 'Campo "reles" deve ser um array.' });
     }
-    const origem = req.body.origem === 'automatico' ? 'automatico' : 'manual';
+    const origem = ORIGENS_RECONHECIDAS.includes(req.body.origem) ? req.body.origem : 'manual';
 
     const resultado = await aplicarRelesNoModulo(id, relesRecebidos, origem);
     if (!resultado.ok) {

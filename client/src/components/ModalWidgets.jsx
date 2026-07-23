@@ -8,6 +8,7 @@ export const ROTULOS_WIDGETS = {
     centralAquario: 'Central do Aquario',
     matrizReles: 'Diagnostico de Reles (16CH)',
     temas: 'Temas',
+    agendamentos: 'Agendamentos',
     modulosControladores: 'Modulos de Controladores',
     qrcodes: 'QR Codes',
     systemLog: 'System Log',

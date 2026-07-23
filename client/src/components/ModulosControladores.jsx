@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Server, Trash2 } from 'lucide-react';
+import { CircuitBoard, Plus, Server, Trash2 } from 'lucide-react';
 import ModalInfo from './ModalInfo';
 
 const TIPOS = ['atuador', 'telemetria', 'display'];
@@ -39,7 +39,7 @@ function formatarValorStatus(chave, valor) {
 // periódico em background no server — ver services/statusModulosService.js). O LED
 // reflete "online", não "ativo": verde pulsante quando o módulo responde, vermelho neon
 // quando não responde — "ativo" continua só como texto no título (tooltip) do LED.
-export default function ModulosControladores({ modulos, onCriar, onRemover, carregando, erro }) {
+export default function ModulosControladores({ modulos, onCriar, onRemover, carregando, erro, onAbrirEsquematico }) {
     const [formAberto, setFormAberto] = useState(false);
     const [form, setForm] = useState({ nome: '', ip: '', tipo: TIPOS[0], ativo: true });
     const [enviando, setEnviando] = useState(false);
@@ -202,6 +202,23 @@ export default function ModulosControladores({ modulos, onCriar, onRemover, carr
 
                 {!carregandoStatus && statusModulo && !statusModulo.disponivel && (
                     <p className="mensagem-erro hud-tag">{statusModulo.motivo ?? 'Modulo inacessivel.'}</p>
+                )}
+
+                {/* Esquematico Interativo (16-espc) — so faz sentido pro modulo de reles
+                    (tipo "atuador"); fecha este modal de status e abre o esquematico no
+                    lugar, em vez de empilhar dois modais. */}
+                {moduloClicado?.tipo === 'atuador' && (
+                    <button
+                        className="botao-primario status-modulo__botao-esquematico"
+                        type="button"
+                        onClick={() => {
+                            fecharStatusModulo();
+                            onAbrirEsquematico();
+                        }}
+                    >
+                        <CircuitBoard size={14} />
+                        Ver Esquematico Tatico
+                    </button>
                 )}
             </ModalInfo>
         </>

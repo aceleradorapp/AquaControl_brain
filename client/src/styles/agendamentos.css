@@ -1,0 +1,386 @@
+/* Motor de Agendamento, Timers e Overrides (18-espc) — Widget Tatico + Modais de
+   Criacao/Timer. Reaproveita os tokens de theme.css (nenhuma cor crua nova). */
+
+/* --- Banner de Override Manual --- */
+.agendamentos-widget__override {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    margin-bottom: var(--espaco-sm);
+    border: 1px solid var(--cor-alerta);
+    color: var(--cor-alerta);
+    background: rgba(255, 202, 40, 0.08);
+    font-family: var(--fonte-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    animation: agendamentos-override-pulso 1.6s ease-in-out infinite;
+}
+@keyframes agendamentos-override-pulso {
+    0%,
+    100% {
+        box-shadow: 0 0 4px rgba(255, 202, 40, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 12px rgba(255, 202, 40, 0.7);
+    }
+}
+.agendamentos-widget__botao-retomar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    font-family: var(--fonte-titulo);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    background: transparent;
+    border: 1px solid var(--cor-alerta);
+    color: var(--cor-alerta);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+.agendamentos-widget__botao-retomar:hover {
+    background: rgba(255, 202, 40, 0.18);
+    box-shadow: 0 0 8px rgba(255, 202, 40, 0.5);
+}
+
+/* --- Secoes (ativo agora / proximo / timers) --- */
+.agendamentos-widget__secao {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-xs);
+    margin-bottom: var(--espaco-sm);
+}
+.agendamentos-widget__rotulo-secao {
+    display: block;
+    margin: var(--espaco-xs) 0 4px;
+}
+
+.agendamentos-widget__card {
+    padding: 8px 10px;
+    border: 1px solid var(--cor-borda);
+    background: rgba(255, 255, 255, 0.02);
+}
+.agendamentos-widget__card-topo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.agendamentos-widget__card-nome {
+    flex: 1;
+    font-family: var(--fonte-titulo);
+    font-size: 0.78rem;
+    letter-spacing: 0.03em;
+}
+
+/* Ligado agora — Ciano Neon */
+.agendamentos-widget__card--ativo {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+    box-shadow: 0 0 8px rgba(var(--cor-primaria-rgb), 0.35);
+}
+.agendamentos-widget__barra {
+    margin-top: 6px;
+    height: 4px;
+    background: var(--cor-borda);
+    overflow: hidden;
+}
+.agendamentos-widget__barra-preenchida {
+    height: 100%;
+    background: var(--cor-primaria);
+    box-shadow: 0 0 6px var(--cor-primaria);
+    transition: width 0.6s ease;
+}
+
+/* Proximo da fila — Ambar/Laranja Neon */
+.agendamentos-widget__card--proximo {
+    border-color: var(--cor-laranja);
+    color: var(--cor-laranja);
+    box-shadow: 0 0 8px rgba(var(--cor-laranja-rgb), 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* --- Timers ativos --- */
+.agendamentos-widget__timer {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: 6px 10px;
+    border: 1px solid var(--cor-laranja);
+    color: var(--cor-laranja);
+    background: rgba(var(--cor-laranja-rgb), 0.05);
+}
+.agendamentos-widget__timer .agendamentos-widget__card-nome {
+    font-size: 0.74rem;
+}
+
+.agendamentos-widget__vazio {
+    white-space: normal;
+    line-height: 1.5;
+    padding: var(--espaco-xs) 0;
+}
+
+/* --- Lista de agendamentos cadastrados: accordion recolhido por padrao (19-espc) --- */
+.agendamentos-widget__toggle-cadastrados {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    padding: 6px 10px;
+    transition: all 0.2s ease;
+}
+.agendamentos-widget__toggle-cadastrados:hover {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+}
+
+/* Fechado por padrao (max-height:0 + overflow escondido) — expande com transicao suave até
+   o teto de 200px, onde passa a rolar internamente (overflow-y:auto). */
+.agendamentos-widget__lista {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 0;
+    overflow: hidden;
+    padding-right: 4px;
+    transition: max-height 0.3s ease;
+}
+.agendamentos-widget__lista--aberto {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: var(--espaco-xs);
+}
+.agendamentos-widget__linha {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: 6px 8px;
+    border: 1px solid var(--cor-borda);
+}
+.agendamentos-widget__linha--inativo {
+    opacity: 0.5;
+}
+.agendamentos-widget__chave input {
+    accent-color: var(--cor-primaria);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+.agendamentos-widget__info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.agendamentos-widget__nome {
+    font-family: var(--fonte-titulo);
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Modal de Agendamento --- */
+.modal-agendamento {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+}
+.modal-agendamento__tipo {
+    display: flex;
+    gap: var(--espaco-sm);
+}
+.modal-agendamento__tipo-item {
+    flex: 1;
+    font-family: var(--fonte-titulo);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 9px;
+    background: transparent;
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.modal-agendamento__tipo-item--ativo {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+
+/* --- Multiplos Horarios por agendamento (19-espc) --- */
+.modal-agendamento__horarios-cabecalho {
+    margin-bottom: -6px;
+}
+.modal-agendamento__horarios-lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+}
+.modal-agendamento__horarios {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--espaco-md);
+}
+.modal-agendamento__campo-horario {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.modal-agendamento__campo-horario .hud-input {
+    width: 100%;
+}
+.modal-agendamento__botao-remover {
+    flex-shrink: 0;
+}
+.modal-agendamento__botao-remover:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+.modal-agendamento__botao-adicionar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    align-self: flex-start;
+    font-family: var(--fonte-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px dashed var(--cor-borda-forte);
+    color: var(--cor-primaria);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.modal-agendamento__botao-adicionar:hover {
+    border-style: solid;
+    box-shadow: var(--glow-cyan-sm);
+}
+
+.modal-agendamento__dias-cabecalho {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.modal-agendamento__atalhos {
+    display: flex;
+    gap: 6px;
+}
+.modal-agendamento__atalho {
+    font-family: var(--fonte-mono);
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 3px 8px;
+    background: transparent;
+    border: 1px solid var(--cor-texto-secundario);
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.modal-agendamento__atalho:hover {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+}
+
+.modal-agendamento__dias {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.modal-agendamento__dia {
+    flex: 1;
+    min-width: 40px;
+    font-family: var(--fonte-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
+    padding: 8px 4px;
+    background: transparent;
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.modal-agendamento__dia--ativo {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+
+.modal-agendamento__repetir {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    font-family: var(--fonte-mono);
+    font-size: 0.76rem;
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+}
+.modal-agendamento__repetir input {
+    accent-color: var(--cor-alerta);
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+/* --- Modal de Timer Rapido --- */
+.modal-timer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+}
+.modal-timer__presets {
+    display: flex;
+    gap: var(--espaco-sm);
+    flex-wrap: wrap;
+}
+.modal-timer__preset {
+    flex: 1;
+    min-width: 60px;
+    font-family: var(--fonte-titulo);
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.modal-timer__preset--ativo {
+    border-color: var(--cor-laranja);
+    color: var(--cor-laranja);
+    box-shadow: var(--glow-laranja-md);
+}
+
+/* --- Responsivo --- */
+@media (max-width: 600px) {
+    .modal-agendamento__horarios {
+        flex-direction: column;
+    }
+    .modal-agendamento__dia {
+        min-width: 32px;
+        font-size: 0.62rem;
+    }
+}

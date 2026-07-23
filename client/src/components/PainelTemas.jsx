@@ -1,11 +1,17 @@
-import { Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 
-// Widget "Temas" (14-espc): cada tema é um grupo nomeado de relés com um estado definido
+// Widget "Temas" (14/15-espc): cada tema é um grupo nomeado de relés com um estado definido
 // (ver ModalCriarTema.jsx) — clicar num tema aplica esses estados de verdade (POST
 // /api/temas/:id/aplicar, através do Brain), sem mexer nos relés que não fazem parte dele.
-// O botão "+" abre o modal de criação (estado vive no Dashboard, não aqui, pra também poder
-// ser aberto pelo Menu de Ações mesmo com este widget escondido — ver MenuAcoes.jsx).
-export default function PainelTemas({ moduloAtuador, temas, onAbrirCriarTema, onAplicar, onRemover }) {
+//
+// Regra de exclusão mútua (15-espc): nunca dois temas ativos ao mesmo tempo — o servidor
+// decide isso (ver temasController.js), aqui só destaca visualmente qual "tema.ativo" veio
+// da última resposta/carregamento. Clicar no tema já ativo desativa ele (some o destaque).
+//
+// O botão "+" abre o modal de criação e o lápis abre o de edição — o estado de "qual modal
+// está aberto / qual tema está sendo editado" vive no Dashboard, não aqui, pra também poder
+// ser aberto pelo Menu de Ações mesmo com este widget escondido — ver MenuAcoes.jsx.
+export default function PainelTemas({ moduloAtuador, temas, onAbrirCriarTema, onEditar, onAplicar, onRemover }) {
     return (
         <div className="hud-painel painel-temas">
             <div className="painel-cabecalho">
@@ -20,16 +26,32 @@ export default function PainelTemas({ moduloAtuador, temas, onAbrirCriarTema, on
             {moduloAtuador && (
                 <div className="painel-temas__lista hud-scrollbar">
                     {temas.map((tema) => (
-                        <div key={tema.id} className="painel-temas__item">
-                            <button className="painel-temas__botao" type="button" onClick={() => onAplicar(tema.id)} title={`Aplicar tema "${tema.nome}"`}>
+                        <div key={tema.id} className={`painel-temas__item ${tema.ativo ? 'painel-temas__item--ativo' : ''}`}>
+                            <button
+                                className="painel-temas__botao"
+                                type="button"
+                                onClick={() => onAplicar(tema.id)}
+                                title={tema.ativo ? `Desativar tema "${tema.nome}"` : `Aplicar tema "${tema.nome}"`}
+                            >
                                 <Sparkles size={14} />
                                 <span className="painel-temas__nome">{tema.nome}</span>
+                                {tema.ativo && <span className="hud-tag painel-temas__tag-ativo">ATIVO</span>}
                                 <span className="hud-tag">{tema.reles.length} rele(s)</span>
+                            </button>
+                            <button
+                                className="botao-icone"
+                                onClick={() => onEditar(tema.id)}
+                                aria-label={`Editar tema ${tema.nome}`}
+                                title="Editar tema"
+                                type="button"
+                            >
+                                <Pencil size={14} />
                             </button>
                             <button
                                 className="botao-icone botao-icone--erro"
                                 onClick={() => onRemover(tema.id)}
                                 aria-label={`Remover tema ${tema.nome}`}
+                                title="Remover tema"
                                 type="button"
                             >
                                 <Trash2 size={14} />

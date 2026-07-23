@@ -327,14 +327,15 @@
     margin-bottom: var(--espaco-sm);
 }
 
-/* Altura fixa + scroll (14-espc) — a lista podia crescer e empurrar o resto da coluna pra
-   baixo quando havia muita saída mapeada; agora fica num tamanho previsível, com scroll
-   interno (mesmo padrão de .gestao-esps__lista). */
+/* Altura fixa + scroll (14-espc, reduzida no 17-espc) — a lista podia crescer e empurrar o
+   resto da coluna pra baixo quando havia muita saída mapeada; agora fica num tamanho
+   previsível, com scroll interno (mesmo padrão de .gestao-esps__lista). Calibrada pra
+   mostrar ~5 itens de cada vez (item de ~45px + gap de 8px) — o resto rola. */
 .painel-equipamentos__lista {
     display: flex;
     flex-direction: column;
     gap: var(--espaco-sm);
-    max-height: 320px;
+    max-height: 260px;
     overflow-y: auto;
     padding-right: 4px;
 }
@@ -515,6 +516,15 @@
     flex: 1;
     text-align: left;
 }
+/* Destaque do tema ativo (15-espc) — regra de exclusao mutua, nunca dois ao mesmo tempo */
+.painel-temas__item--ativo .painel-temas__botao {
+    border-color: var(--cor-sucesso);
+    color: var(--cor-sucesso);
+    box-shadow: 0 0 8px rgba(0, 255, 157, 0.4);
+}
+.painel-temas__tag-ativo {
+    color: var(--cor-sucesso);
+}
 .painel-temas__vazio {
     white-space: normal;
     line-height: 1.5;
@@ -686,6 +696,14 @@
     color: var(--cor-primaria);
     font-size: 0.8rem;
     text-align: right;
+}
+.status-modulo__botao-esquematico {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    justify-content: center;
+    margin-top: var(--espaco-md);
 }
 .gestao-esps__info {
     display: flex;

@@ -23,6 +23,13 @@
 .modal-hud--grande {
     max-width: 720px;
 }
+/* "cheia" (16-espc): pro Esquematico Interativo — precisa de bastante largura pra caber o
+   ESP32 + os 2 modulos de reles lado a lado com espaco pras trilhas de conexao. */
+.modal-hud--cheia {
+    max-width: 1180px;
+    width: 95vw;
+    max-height: 97vh;
+}
 
 .modal-hud__cabecalho {
     display: flex;
@@ -111,6 +118,21 @@
 .modal-temas__nome {
     width: 100%;
     margin-bottom: var(--espaco-md);
+}
+.modal-temas__testar {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    font-family: var(--fonte-mono);
+    font-size: 0.76rem;
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    margin-bottom: var(--espaco-md);
+}
+.modal-temas__testar input {
+    accent-color: var(--cor-alerta);
+    width: 16px;
+    height: 16px;
 }
 .modal-temas__lista {
     display: flex;

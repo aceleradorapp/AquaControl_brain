@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Settings, Sparkles, LayoutGrid } from 'lucide-react';
+import { Settings, Sparkles, LayoutGrid, CircuitBoard, CalendarClock } from 'lucide-react';
 import HeaderTatico from './HeaderTatico';
 import SensorGauge from './SensorGauge';
 import BarraEnergiaHud from './BarraEnergiaHud';
@@ -14,8 +14,13 @@ import PainelQrCodes from './PainelQrCodes';
 import PainelTemas from './PainelTemas';
 import ModalCriarTema from './ModalCriarTema';
 import ModalMenuAcoes from './ModalMenuAcoes';
+import EsquematicoInterativo from './EsquematicoInterativo';
+import AgendamentosWidget from './AgendamentosWidget';
+import ModalAgendamento from './ModalAgendamento';
+import ModalTimer from './ModalTimer';
 import { gerarHistoricoMensal, gerarHistoricoTemperatura, gerarUmidadeInicial } from '../utils/mockData';
 import '../styles/dashboard.css';
+import '../styles/agendamentos.css';
 
 let proximoIdLog = 1;
 
@@ -30,6 +35,7 @@ const VISIBILIDADE_PADRAO = {
     matrizReles: true,
     qrcodes: true,
     temas: true,
+    agendamentos: true,
 };
 
 function carregarVisibilidadeSalva() {
@@ -71,15 +77,32 @@ export default function Dashboard() {
     // ModalCriarTema.jsx. Buscados sempre que o módulo atuador muda (mesmo padrão de
     // portasMapeamento acima).
     const [temas, setTemas] = useState([]);
+    // Motor de Agendamento (18-espc, ver AgendamentosWidget.jsx/schedulerService.js no
+    // server): "agendamentos" e a lista completa cadastrada, "timers" os Timers Rapidos
+    // ainda rodando, "estadoAgendamentos" o resumo pronto do servidor (o que esta ligado
+    // agora pela agenda, o proximo, e se o Override Manual esta pausando tudo) — os tres
+    // sao buscados juntos a cada poucos segundos (mesmo padrao de estadoReles acima).
+    const [agendamentos, setAgendamentos] = useState([]);
+    const [timers, setTimers] = useState([]);
+    const [estadoAgendamentos, setEstadoAgendamentos] = useState(null);
+    const [modalAgendamentoAberto, setModalAgendamentoAberto] = useState(false);
+    const [agendamentoEditando, setAgendamentoEditando] = useState(null);
+    const [modalTimerAberto, setModalTimerAberto] = useState(false);
     const [umidadeAr, setUmidadeAr] = useState(gerarUmidadeInicial);
     const [logs, setLogs] = useState([]);
     const [visibilidadeWidgets, setVisibilidadeWidgets] = useState(carregarVisibilidadeSalva);
     const [modalPortasAberto, setModalPortasAberto] = useState(false);
     const [modalWidgetsAberto, setModalWidgetsAberto] = useState(false);
     const [modalCriarTemaAberto, setModalCriarTemaAberto] = useState(false);
+    // Tema sendo editado no modal (15-espc) — null quando o modal está em modo "criar novo".
+    // Ver abrirEdicaoTema/ModalCriarTema.jsx.
+    const [temaEditando, setTemaEditando] = useState(null);
     // Menu de Acoes (14-espc, ver 01-espc-geral/14_menu_de_acoes.md): acesso permanente a
     // qualquer tela de configuracao, mesmo com o widget correspondente escondido.
     const [modalMenuAberto, setModalMenuAberto] = useState(false);
+    // Esquematico Interativo (16-espc) — aberto pelo header, pelo Menu de Acoes, ou pelo
+    // botao "Ver Esquematico Tatico" dentro do modal de status em ModulosControladores.jsx.
+    const [modalEsquematicoAberto, setModalEsquematicoAberto] = useState(false);
     // Modo Panico: gadget de emergencia no header (ver HeaderTatico) — desliga os 16 reles
     // de uma vez e retinta o tema inteiro de vermelho (ver ".dashboard--panico" em
     // theme.css), so trocando variaveis CSS, nenhum componente precisa saber que esta em
@@ -241,6 +264,50 @@ export default function Dashboard() {
             .catch(() => {});
     }, [moduloAtuador?.id]);
 
+    // Motor de Agendamento (18-espc): busca a lista cadastrada + timers ativos + o resumo
+    // pronto do servidor (GET /api/agendamentos/estado) a cada 10s — mesmo intervalo do
+    // ciclo do motor no server, pra o widget nunca ficar "atrasado" em relacao ao que
+    // realmente esta sendo aplicado nos reles. Refaz tudo do zero a cada poll (mais simples
+    // que tentar diffar) — a lista raramente passa de poucas dezenas de linhas.
+    useEffect(() => {
+        if (!moduloAtuador) {
+            setAgendamentos([]);
+            setTimers([]);
+            setEstadoAgendamentos(null);
+            return undefined;
+        }
+
+        let cancelado = false;
+
+        async function atualizarAgendamentos() {
+            try {
+                const [respAgendamentos, respTimers, respEstado] = await Promise.all([
+                    fetch(`/api/agendamentos?moduloId=${moduloAtuador.id}`),
+                    fetch(`/api/timers?moduloId=${moduloAtuador.id}`),
+                    fetch(`/api/agendamentos/estado?moduloId=${moduloAtuador.id}`),
+                ]);
+                const [dadosAgendamentos, dadosTimers, dadosEstado] = await Promise.all([
+                    respAgendamentos.json(),
+                    respTimers.json(),
+                    respEstado.json(),
+                ]);
+                if (cancelado) return;
+                setAgendamentos(dadosAgendamentos);
+                setTimers(dadosTimers);
+                setEstadoAgendamentos(dadosEstado);
+            } catch {
+                // silencioso — mesmo espirito do polling de estadoReles acima
+            }
+        }
+
+        atualizarAgendamentos();
+        const intervalo = setInterval(atualizarAgendamentos, 10000);
+        return () => {
+            cancelado = true;
+            clearInterval(intervalo);
+        };
+    }, [moduloAtuador?.id]);
+
     async function criarModulo(dadosForm) {
         try {
             const resposta = await fetch('/api/modulos', {
@@ -390,10 +457,11 @@ export default function Dashboard() {
         }
     }
 
-    // Aplica um Tema de verdade (14-espc) — POST /api/temas/:id/aplicar, que só sobrescreve
-    // os relés que fazem parte do tema (os demais ficam como estavam). O estado otimista
-    // local é sincronizado com o array corrigido que o servidor devolve, igual às outras
-    // funções de acionamento acima.
+    // Aplica um Tema de verdade (14/15-espc) — POST /api/temas/:id/aplicar. Regra de
+    // exclusão mútua (nunca dois temas ativos ao mesmo tempo) é decidida no servidor —
+    // aqui só reflete o resultado: sincroniza o estado otimista dos relés com o array
+    // corrigido que volta, e marca qual tema (se algum) ficou "ativo" (clicar no tema já
+    // ativo desativa ele, ver temasController.js:aplicarTema).
     async function aplicarTema(temaId) {
         const tema = temas.find((t) => t.id === temaId);
         if (!tema) return;
@@ -406,7 +474,13 @@ export default function Dashboard() {
                 return;
             }
             if (Array.isArray(dados.reles)) setEstadoReles(dados.reles);
-            registrarLog(`Tema "${tema.nome}" aplicado (${tema.reles.length} rele(s)).`, 'sucesso');
+            setTemas((atual) => atual.map((t) => ({ ...t, ativo: t.id === dados.temaAtivoId })));
+            registrarLog(
+                dados.temaAtivoId === temaId
+                    ? `Tema "${tema.nome}" aplicado (${tema.reles.length} rele(s)).`
+                    : `Tema "${tema.nome}" desativado.`,
+                dados.temaAtivoId === temaId ? 'sucesso' : 'alerta'
+            );
         } catch (erro) {
             registrarLog(`Falha de comunicacao ao aplicar o tema "${tema.nome}": ${erro.message}`, 'erro');
         }
@@ -422,6 +496,131 @@ export default function Dashboard() {
         } catch {
             registrarLog('Falha ao remover tema.', 'erro');
         }
+    }
+
+    // Abre o ModalAgendamento em modo "criar novo" ou "editar" — mesmo padrao de
+    // abrirCriarTema/abrirEdicaoTema logo abaixo.
+    function abrirNovoAgendamento() {
+        setAgendamentoEditando(null);
+        setModalAgendamentoAberto(true);
+    }
+
+    function abrirEdicaoAgendamento(agendamento) {
+        setAgendamentoEditando(agendamento);
+        setModalAgendamentoAberto(true);
+    }
+
+    // Callback unico do ModalAgendamento pra criar OU editar (POST e PUT devolvem o mesmo
+    // formato) — mesmo padrao de aoSalvarTema.
+    function aoSalvarAgendamento(agendamentoSalvo) {
+        setAgendamentos((atual) => {
+            const existe = atual.some((a) => a.id === agendamentoSalvo.id);
+            return existe ? atual.map((a) => (a.id === agendamentoSalvo.id ? agendamentoSalvo : a)) : [...atual, agendamentoSalvo];
+        });
+    }
+
+    async function excluirAgendamento(id) {
+        const agendamento = agendamentos.find((a) => a.id === id);
+        try {
+            const resposta = await fetch(`/api/agendamentos/${id}`, { method: 'DELETE' });
+            if (!resposta.ok && resposta.status !== 204) throw new Error();
+            setAgendamentos((atual) => atual.filter((a) => a.id !== id));
+            registrarLog(`Agendamento removido: ${agendamento?.nome ?? id}`, 'alerta');
+        } catch {
+            registrarLog('Falha ao remover agendamento.', 'erro');
+        }
+    }
+
+    // Liga/desliga um agendamento sem abrir o modal (checkbox direto na lista, ver
+    // AgendamentosWidget.jsx) — PUT parcial, so manda o campo "ativo" invertido.
+    async function alternarAtivoAgendamento(agendamento) {
+        try {
+            const resposta = await fetch(`/api/agendamentos/${agendamento.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ativo: !agendamento.ativo }),
+            });
+            if (!resposta.ok) throw new Error();
+            const atualizado = await resposta.json();
+            setAgendamentos((atual) => atual.map((a) => (a.id === atualizado.id ? atualizado : a)));
+        } catch {
+            registrarLog(`Falha ao ${agendamento.ativo ? 'desativar' : 'ativar'} agendamento "${agendamento.nome}".`, 'erro');
+        }
+    }
+
+    function abrirNovoTimer() {
+        setModalTimerAberto(true);
+    }
+
+    function aoDispararTimer(timerNovo) {
+        setTimers((atual) => [...atual, timerNovo]);
+    }
+
+    async function cancelarTimer(id) {
+        const timer = timers.find((t) => t.id === id);
+        try {
+            const resposta = await fetch(`/api/timers/${id}`, { method: 'DELETE' });
+            if (!resposta.ok && resposta.status !== 204) throw new Error();
+            setTimers((atual) => atual.filter((t) => t.id !== id));
+            registrarLog(`Timer cancelado: ${timer?.nome ?? id}`, 'alerta');
+        } catch {
+            registrarLog('Falha ao cancelar timer.', 'erro');
+        }
+    }
+
+    // "Retomar Agendamento" no widget (banner de Override Manual Ativo) — desativa o Tema
+    // Manual ativo neste modulo (se houver) e desliga o override, disparando a
+    // re-sincronizacao completa no servidor na hora (ver agendamentosController.js:retomarAgendamento).
+    async function retomarAgendamento() {
+        if (!moduloAtuador) return;
+        try {
+            const resposta = await fetch('/api/agendamentos/retomar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ moduloId: moduloAtuador.id }),
+            });
+            if (!resposta.ok) throw new Error();
+            setEstadoAgendamentos((atual) => (atual ? { ...atual, overrideAtivo: false } : atual));
+            setTemas((atual) => atual.map((t) => ({ ...t, ativo: false })));
+            registrarLog('Agendamento automatico retomado — override manual desativado.', 'sucesso');
+        } catch {
+            registrarLog('Falha ao retomar o agendamento automatico.', 'erro');
+        }
+    }
+
+    // Abre o modal em modo "criar novo" (temaEditando = null) ou "editar" (temaEditando =
+    // o tema clicado) — ver PainelTemas.jsx (botão de lápis) e ModalCriarTema.jsx.
+    function abrirCriarTema() {
+        setTemaEditando(null);
+        setModalCriarTemaAberto(true);
+    }
+
+    function abrirEdicaoTema(temaId) {
+        const tema = temas.find((t) => t.id === temaId);
+        if (!tema) return;
+        setTemaEditando(tema);
+        setModalCriarTemaAberto(true);
+    }
+
+    // Callback único do ModalCriarTema pra criar OU editar (POST e PUT devolvem o mesmo
+    // formato) — se o id já existe na lista, foi uma edição; senão, é um tema novo.
+    function aoSalvarTema(temaSalvo) {
+        setTemas((atual) => {
+            const existe = atual.some((t) => t.id === temaSalvo.id);
+            return existe ? atual.map((t) => (t.id === temaSalvo.id ? temaSalvo : t)) : [...atual, temaSalvo];
+        });
+    }
+
+    // "Testar ao vivo" no modal de Criar/Editar Tema (15-espc): aciona UM relé de verdade
+    // (sem precisar salvar o tema antes) pra o usuário ver/ouvir o clique físico enquanto
+    // monta o grupo. Mesmo núcleo de enviarArrayReles, só com origem "teste" — fica separado
+    // no histórico dos acionamentos manuais de verdade.
+    async function testarRelePontual(indice, estado) {
+        if (!moduloAtuador) return;
+        const base = estadoReles ?? Array(16).fill(0);
+        const novoArray = [...base];
+        novoArray[indice] = estado;
+        await enviarArrayReles(novoArray, 'teste');
     }
 
     // Botao de panico: desliga os 16 reles de uma vez (array de zeros, nao um-a-um), sempre
@@ -482,7 +681,16 @@ export default function Dashboard() {
             posicaoIndice: porta.posicaoIndice,
             bloqueado: !porta.habilitado,
             ativo: estadoReles ? estadoReles[porta.posicaoIndice] === 1 : false,
-        }));
+        }))
+        // Ordem por prioridade de status (17-espc) — ATIVO primeiro, depois BLOQUEADO, e
+        // STANDBY por último; dentro de cada grupo, alfabética. Reflete o que mais importa
+        // ver de cara: o que está ligado agora, seguido do que precisa de atenção (bloqueado),
+        // com o que está parado em standby no final da lista.
+        .sort((a, b) => {
+            const prioridade = (e) => (e.ativo ? 0 : e.bloqueado ? 1 : 2);
+            const diferenca = prioridade(a) - prioridade(b);
+            return diferenca !== 0 ? diferenca : a.nome.localeCompare(b.nome, 'pt-BR');
+        });
 
     const valorAguaAtual = dados24h.agua[dados24h.agua.length - 1].valor;
     const valorAmbienteAtual = dados24h.ambiente[dados24h.ambiente.length - 1].valor;
@@ -493,7 +701,9 @@ export default function Dashboard() {
     // adicionada ao dashboard DEVE ganhar uma entrada aqui tambem.
     const itensMenu = [
         { chave: 'mapear-saidas', rotulo: 'Mapear Saidas', icone: <Settings size={16} />, onClick: () => setModalPortasAberto(true) },
-        { chave: 'criar-tema', rotulo: 'Criar Tema', icone: <Sparkles size={16} />, onClick: () => setModalCriarTemaAberto(true) },
+        { chave: 'criar-tema', rotulo: 'Criar Tema', icone: <Sparkles size={16} />, onClick: abrirCriarTema },
+        { chave: 'agendamentos', rotulo: 'Agendamentos', icone: <CalendarClock size={16} />, onClick: abrirNovoAgendamento },
+        { chave: 'esquematico', rotulo: 'Esquematico Interativo', icone: <CircuitBoard size={16} />, onClick: () => setModalEsquematicoAberto(true) },
         { chave: 'layout-widgets', rotulo: 'Layout / Widgets', icone: <LayoutGrid size={16} />, onClick: () => setModalWidgetsAberto(true) },
     ];
 
@@ -504,6 +714,8 @@ export default function Dashboard() {
                 latenciaMs={latenciaMs}
                 onAbrirWidgets={() => setModalWidgetsAberto(true)}
                 onAbrirMenu={() => setModalMenuAberto(true)}
+                onAbrirEsquematico={() => setModalEsquematicoAberto(true)}
+                onAbrirAgendamentos={abrirNovoAgendamento}
                 modoPanico={modoPanico}
                 onAtivarPanico={ativarModoPanico}
                 onNormalizar={normalizarSistema}
@@ -557,9 +769,26 @@ export default function Dashboard() {
                         <PainelTemas
                             moduloAtuador={moduloAtuador}
                             temas={temas}
-                            onAbrirCriarTema={() => setModalCriarTemaAberto(true)}
+                            onAbrirCriarTema={abrirCriarTema}
+                            onEditar={abrirEdicaoTema}
                             onAplicar={aplicarTema}
                             onRemover={removerTema}
+                        />
+                    )}
+
+                    {visibilidadeWidgets.agendamentos && (
+                        <AgendamentosWidget
+                            moduloAtuador={moduloAtuador}
+                            agendamentos={agendamentos}
+                            timers={timers}
+                            estado={estadoAgendamentos}
+                            onNovoAgendamento={abrirNovoAgendamento}
+                            onEditarAgendamento={abrirEdicaoAgendamento}
+                            onExcluirAgendamento={excluirAgendamento}
+                            onAlternarAtivo={alternarAtivoAgendamento}
+                            onNovoTimer={abrirNovoTimer}
+                            onCancelarTimer={cancelarTimer}
+                            onRetomarAgendamento={retomarAgendamento}
                         />
                     )}
                 </section>
@@ -572,6 +801,7 @@ export default function Dashboard() {
                             onRemover={removerModulo}
                             carregando={carregandoModulos}
                             erro={erroModulos}
+                            onAbrirEsquematico={() => setModalEsquematicoAberto(true)}
                         />
                     )}
                     {visibilidadeWidgets.qrcodes && <PainelQrCodes />}
@@ -598,12 +828,44 @@ export default function Dashboard() {
                 aberto={modalCriarTemaAberto}
                 modulo={moduloAtuador}
                 portas={portasMapeamento}
+                temaEditando={temaEditando}
                 onFechar={() => setModalCriarTemaAberto(false)}
-                onCriado={(novoTema) => setTemas((atual) => [...atual, novoTema])}
+                onSalvo={aoSalvarTema}
+                onTestar={testarRelePontual}
                 registrarLog={registrarLog}
             />
 
             <ModalMenuAcoes aberto={modalMenuAberto} itens={itensMenu} onFechar={() => setModalMenuAberto(false)} />
+
+            <ModalAgendamento
+                aberto={modalAgendamentoAberto}
+                modulo={moduloAtuador}
+                portas={portasMapeamento}
+                temas={temas}
+                agendamentoEditando={agendamentoEditando}
+                onFechar={() => setModalAgendamentoAberto(false)}
+                onSalvo={aoSalvarAgendamento}
+                registrarLog={registrarLog}
+            />
+
+            <ModalTimer
+                aberto={modalTimerAberto}
+                modulo={moduloAtuador}
+                portas={portasMapeamento}
+                temas={temas}
+                onFechar={() => setModalTimerAberto(false)}
+                onDisparado={aoDispararTimer}
+                registrarLog={registrarLog}
+            />
+
+            <EsquematicoInterativo
+                aberto={modalEsquematicoAberto}
+                onFechar={() => setModalEsquematicoAberto(false)}
+                moduloAtuador={moduloAtuador}
+                estadoReles={estadoReles}
+                portas={portasMapeamento}
+                onAlternarPorta={alternarPorta}
+            />
         </div>
     );
 }

@@ -38,8 +38,45 @@ function migrarEspsParaModulos(db) {
     console.log('[migrate] Tabela "esps" migrada para "modulos".');
 }
 
+// 19-espc: Multiplos Horarios por Agendamento — um agendamento agora pode ter VARIOS
+// intervalos hora_inicio/hora_fim (ex.: "liga as 08h-12h E as 18h-22h"), nao so um. As
+// colunas hora_inicio/hora_fim saem de "agendamentos" e viram uma tabela filha
+// (agendamentos_horarios, 1-N), mesmo padrao de temas/temas_reles — ver schedulerService.js
+// e agendamentosController.js. Migra qualquer linha existente (o unico intervalo que ela
+// tinha) pra a tabela nova antes de remover as colunas antigas; so roda uma vez, na
+// primeira inicializacao depois do upgrade.
+function migrarAgendamentosParaMultiHorarios(db) {
+    if (!tabelaExiste(db, 'agendamentos') || !colunaExiste(db, 'agendamentos', 'hora_inicio')) return;
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS agendamentos_horarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agendamento_id INTEGER NOT NULL,
+            hora_inicio TEXT NOT NULL,
+            hora_fim TEXT NOT NULL,
+            FOREIGN KEY (agendamento_id) REFERENCES agendamentos (id) ON DELETE CASCADE
+        );
+    `);
+
+    const linhas = db.prepare('SELECT id, hora_inicio, hora_fim FROM agendamentos').all();
+    const inserir = db.prepare('INSERT INTO agendamentos_horarios (agendamento_id, hora_inicio, hora_fim) VALUES (?, ?, ?)');
+    for (const linha of linhas) {
+        inserir.run(linha.id, linha.hora_inicio, linha.hora_fim);
+    }
+
+    try {
+        db.exec('ALTER TABLE agendamentos DROP COLUMN hora_inicio;');
+        db.exec('ALTER TABLE agendamentos DROP COLUMN hora_fim;');
+    } catch (erro) {
+        console.warn('[migrate] Nao foi possivel remover hora_inicio/hora_fim de agendamentos (SQLite antigo?):', erro.message);
+    }
+
+    console.log(`[migrate] ${linhas.length} agendamento(s) migrado(s) pra multiplos horarios (agendamentos_horarios).`);
+}
+
 function runMigrations(db) {
     migrarEspsParaModulos(db);
+    migrarAgendamentosParaMultiHorarios(db);
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS modulos (
@@ -166,6 +203,91 @@ function runMigrations(db) {
             estado INTEGER NOT NULL,
             FOREIGN KEY (tema_id) REFERENCES temas (id) ON DELETE CASCADE,
             UNIQUE (tema_id, posicao_indice)
+        );
+    `);
+
+    // 15-espc: qual Tema está "ativo" agora, por módulo — nunca dois ao mesmo tempo (regra
+    // de negócio, não só de UI). Uma linha por módulo (PRIMARY KEY modulo_id); "ON DELETE
+    // SET NULL" garante que apagar o tema ativo não deixa a linha apontando pra um id morto
+    // (db.js já liga PRAGMA foreign_keys = ON, então isso é aplicado de verdade pelo SQLite).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS temas_estado (
+            modulo_id INTEGER PRIMARY KEY,
+            tema_ativo_id INTEGER,
+            FOREIGN KEY (modulo_id) REFERENCES modulos (id) ON DELETE CASCADE,
+            FOREIGN KEY (tema_ativo_id) REFERENCES temas (id) ON DELETE SET NULL
+        );
+    `);
+
+    // 18-espc (01-espc-geral/15_engine_agendamento_timers_e_overrides.md — numeracao colide
+    // de proposito com o "15-espc" das linhas acima, que e um arquivo de especificacao
+    // diferente; ver schedulerService.js): agendamentos programados por rele OU tema, com
+    // janela hora_inicio/hora_fim e dias_semana (JSON array de siglas "SEG".."DOM").
+    // "modulo_id" nao esta no schema literal da especificacao, mas foi adicionado aqui pelo
+    // mesmo motivo de toda outra tabela que aciona hardware de verdade (temas, historico_reles)
+    // — o motor precisa saber QUAL modulo/ESP acionar. "nome" e uma copia do nome do alvo no
+    // momento do cadastro (mesma logica de "nome_porta" em historico_reles), pra continuar
+    // legivel mesmo se a porta/tema for renomeado ou removido depois.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS agendamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            modulo_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL CHECK (tipo IN ('rele', 'tema')),
+            alvo_id INTEGER NOT NULL,
+            nome TEXT,
+            dias_semana TEXT NOT NULL,
+            repetir INTEGER NOT NULL DEFAULT 1,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (modulo_id) REFERENCES modulos (id) ON DELETE CASCADE
+        );
+    `);
+
+    // 19-espc: 1-N intervalos hora_inicio/hora_fim por agendamento (ver
+    // migrarAgendamentosParaMultiHorarios acima, que ja cria esta mesma tabela pra migrar
+    // instalacoes antigas — este CREATE aqui e so a garantia idempotente pra instalacao nova).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS agendamentos_horarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agendamento_id INTEGER NOT NULL,
+            hora_inicio TEXT NOT NULL,
+            hora_fim TEXT NOT NULL,
+            FOREIGN KEY (agendamento_id) REFERENCES agendamentos (id) ON DELETE CASCADE
+        );
+    `);
+
+    // 18-espc: Timers Rapidos (ex.: "ligar Filtragem por 30min") — enquanto uma linha aqui
+    // nao expira, o alvo fica forcado ligado, sobrepondo o que o agendamento normal diria
+    // (ver schedulerService.js:aplicarTimers). Ao expirar (ou ser cancelado antes), a linha
+    // e removida e o motor "restaura a agenda" (reavalia o horario normal pro alvo).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS timers_ativos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            modulo_id INTEGER NOT NULL,
+            alvo_tipo TEXT NOT NULL CHECK (alvo_tipo IN ('rele', 'tema')),
+            alvo_id INTEGER NOT NULL,
+            nome TEXT,
+            duracao_segundos INTEGER NOT NULL,
+            disparado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expira_em DATETIME NOT NULL,
+            FOREIGN KEY (modulo_id) REFERENCES modulos (id) ON DELETE CASCADE
+        );
+    `);
+
+    // 18-espc: log de alto nivel do motor de autocontrole (override manual, timers,
+    // re-sincronizacao pos-queda/pos-override) — DIFERENTE de historico_reles (que ja
+    // registra CADA rele que mudou de estado, com origem='agendamento'/'tema'/etc.). Esta
+    // tabela guarda os eventos "de orquestracao" (o que disparou a mudanca, nao a mudanca
+    // rele-a-rele em si). "modulo_id" pode ser NULL (ex.: nao faz sentido nenhum ainda).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS historico_autocontrol (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            modulo_id INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            evento TEXT NOT NULL,
+            origem TEXT NOT NULL,
+            detalhes TEXT,
+            FOREIGN KEY (modulo_id) REFERENCES modulos (id) ON DELETE CASCADE
         );
     `);
 }

@@ -1,0 +1,255 @@
+/* Esquemático Interativo em Tempo Real (16-espc) — SVG puro (sem lib de diagrama), estilo
+   Sci-Fi HUD consistente com o resto do dashboard (mesmas variáveis de theme.css). */
+
+.esquematico {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+}
+
+.esquematico__legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--espaco-md);
+    margin-bottom: var(--espaco-xs);
+}
+.esquematico__legenda-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.esquematico__legenda-traco {
+    width: 22px;
+    height: 3px;
+    border-radius: 2px;
+}
+.esquematico__legenda-traco--ligado {
+    background: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+.esquematico__legenda-traco--desligado {
+    background: var(--cor-borda-forte);
+}
+.esquematico__legenda-traco--bloqueado {
+    background: var(--cor-laranja);
+}
+
+.esquematico__svg-wrap {
+    width: 100%;
+    max-height: 82vh;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+.esquematico__svg {
+    width: 100%;
+    height: auto;
+    min-width: 980px;
+    font-family: var(--fonte-mono);
+    display: block;
+}
+
+/* --- Texto/rótulos dentro do SVG --- */
+.esquematico__titulo-chip {
+    font-family: var(--fonte-titulo);
+    font-size: 15px;
+    fill: var(--cor-primaria);
+    letter-spacing: 1px;
+}
+.esquematico__subtitulo {
+    font-size: 9px;
+    fill: var(--cor-texto-secundario);
+    letter-spacing: 0.5px;
+}
+.esquematico__rotulo-modulo {
+    font-family: var(--fonte-titulo);
+    font-size: 12px;
+    fill: var(--cor-secundaria);
+    letter-spacing: 0.5px;
+}
+.esquematico__rotulo-alimentacao {
+    font-size: 8px;
+    fill: var(--cor-texto-secundario);
+    letter-spacing: 0.3px;
+}
+.esquematico__rotulo-canal {
+    font-size: 8px;
+    fill: var(--cor-texto-secundario);
+    letter-spacing: 0.2px;
+}
+
+/* --- Corpos (chip / modulos) --- */
+.esquematico__corpo-chip {
+    fill: var(--cor-fundo-elevado);
+    stroke: var(--cor-borda-forte);
+    stroke-width: 1.5;
+}
+.esquematico__corpo-modulo {
+    fill: var(--cor-fundo-painel);
+    stroke: var(--cor-borda);
+    stroke-width: 1.5;
+}
+.esquematico__pino-decorativo {
+    fill: var(--cor-borda);
+    opacity: 0.6;
+}
+
+/* --- Status ONLINE/OFFLINE do ESP32 --- */
+.esquematico__status-online {
+    fill: var(--cor-sucesso);
+    filter: drop-shadow(0 0 4px var(--cor-sucesso));
+    animation: esquematico-pulso-status 1.6s ease-in-out infinite;
+}
+.esquematico__status-offline {
+    fill: var(--cor-erro);
+    filter: drop-shadow(0 0 4px var(--cor-erro));
+}
+@keyframes esquematico-pulso-status {
+    0%, 100% { opacity: 0.75; }
+    50% { opacity: 1; }
+}
+
+/* --- Pino do GPIO (lado ESP32) --- */
+.esquematico__pino {
+    fill: var(--cor-fundo);
+    stroke: var(--cor-borda-forte);
+    stroke-width: 1.5;
+    cursor: pointer;
+    transition: stroke 0.2s ease, fill 0.2s ease;
+}
+.esquematico__pino--ligado {
+    fill: var(--cor-primaria);
+    stroke: var(--cor-primaria);
+    filter: drop-shadow(0 0 3px var(--cor-primaria));
+}
+.esquematico__pino--bloqueado {
+    fill: rgba(var(--cor-laranja-rgb), 0.4);
+    stroke: var(--cor-laranja);
+    stroke-width: 2;
+    filter: drop-shadow(0 0 4px var(--cor-laranja));
+    cursor: not-allowed;
+}
+
+/* --- Pino IN do modulo (decorativo, sem interacao) --- */
+.esquematico__pino-modulo {
+    fill: var(--cor-fundo);
+    stroke: var(--cor-borda-forte);
+    stroke-width: 1.2;
+}
+.esquematico__pino-modulo--ligado {
+    fill: var(--cor-primaria);
+    stroke: var(--cor-primaria);
+    filter: drop-shadow(0 0 2px var(--cor-primaria));
+}
+.esquematico__pino-modulo--bloqueado {
+    fill: rgba(var(--cor-laranja-rgb), 0.4);
+    stroke: var(--cor-laranja);
+    stroke-width: 1.8;
+    filter: drop-shadow(0 0 3px var(--cor-laranja));
+}
+
+/* --- Trilha/fio ESP32 -> Modulo (caminho ortogonal, estilo PCB) --- */
+.esquematico__fio {
+    fill: none;
+    stroke: var(--cor-borda-forte);
+    stroke-width: 2;
+    cursor: pointer;
+    transition: stroke 0.2s ease;
+}
+.esquematico__fio--ligado {
+    stroke: var(--cor-primaria);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 3px var(--cor-primaria));
+    stroke-dasharray: 7 5;
+    animation: esquematico-fluxo 0.6s linear infinite;
+}
+.esquematico__fio--bloqueado {
+    stroke: var(--cor-laranja);
+    cursor: not-allowed;
+}
+@keyframes esquematico-fluxo {
+    to { stroke-dashoffset: -24; }
+}
+
+/* --- Fio curto Modulo -> bloco do rele (coluna 2 -> 3), decorativo --- */
+.esquematico__fio-curto {
+    stroke: var(--cor-borda-forte);
+    stroke-width: 1.5;
+}
+.esquematico__fio-curto--ligado {
+    stroke: var(--cor-primaria);
+    filter: drop-shadow(0 0 2px var(--cor-primaria));
+}
+.esquematico__fio-curto--bloqueado {
+    stroke: var(--cor-laranja);
+}
+
+/* --- Bloco do rele na coluna 3: numero + nome + status [ACTIVE/STANDBY] --- */
+.esquematico__rele {
+    fill: var(--cor-fundo-elevado);
+    stroke: var(--cor-borda-forte);
+    stroke-width: 1.2;
+    cursor: pointer;
+    transition: fill 0.2s ease, stroke 0.2s ease;
+}
+.esquematico__rele--ligado {
+    fill: rgba(var(--cor-primaria-rgb), 0.14);
+    stroke: var(--cor-primaria);
+    filter: drop-shadow(0 0 4px rgba(var(--cor-primaria-rgb), 0.5));
+}
+.esquematico__rele--bloqueado {
+    stroke: var(--cor-laranja);
+    cursor: not-allowed;
+    opacity: 0.75;
+}
+.esquematico__rele-numero {
+    font-family: var(--fonte-mono);
+    font-size: 9px;
+    fill: var(--cor-texto-secundario);
+    letter-spacing: 0.3px;
+}
+.esquematico__rele-nome {
+    font-family: var(--fonte-mono);
+    font-size: 9.5px;
+    fill: var(--cor-texto);
+}
+.esquematico__rele-status {
+    font-family: var(--fonte-mono);
+    font-size: 8.5px;
+    font-weight: 600;
+    fill: var(--cor-texto-secundario);
+    letter-spacing: 0.3px;
+}
+.esquematico__rele-status--ligado {
+    fill: var(--cor-primaria);
+    filter: drop-shadow(0 0 3px var(--cor-primaria));
+}
+.esquematico__rele-status--bloqueado {
+    fill: var(--cor-laranja);
+}
+
+/* --- Tooltip HUD flutuante (posicionado via JS, position:fixed) --- */
+.esquematico__tooltip {
+    position: fixed;
+    z-index: 300;
+    pointer-events: none;
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda-forte);
+    box-shadow: var(--glow-cyan-sm);
+    padding: 8px 12px;
+    max-width: 260px;
+}
+.esquematico__tooltip-titulo {
+    font-family: var(--fonte-titulo);
+    font-size: 0.72rem;
+    color: var(--cor-primaria);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+.esquematico__tooltip-linha {
+    font-family: var(--fonte-mono);
+    font-size: 0.68rem;
+    color: var(--cor-texto);
+    line-height: 1.5;
+    white-space: nowrap;
+}

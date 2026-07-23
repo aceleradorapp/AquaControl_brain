@@ -4,6 +4,7 @@ const { PORT } = require('./config/env');
 const routes = require('./routes');
 const { iniciarMonitoramento } = require('./services/statusModulosService');
 const { iniciarEnvioParaDisplay } = require('./services/telemetriaDisplayService');
+const { iniciarSchedulerEngine } = require('./services/schedulerService');
 
 const app = express();
 
@@ -27,3 +28,7 @@ iniciarMonitoramento();
 // 09-espc: agrega o estado dos relés do atuador e empurra pro Display a cada poucos
 // segundos — o Display não fala mais direto com o Hardware, só recebe do Brain.
 iniciarEnvioParaDisplay();
+
+// 18-espc: Motor de Agendamento Inteligente — roda um ciclo a cada 10s + a re-sincronização
+// completa de boot (self-healing pós-queda de energia). Ver schedulerService.js.
+iniciarSchedulerEngine();
