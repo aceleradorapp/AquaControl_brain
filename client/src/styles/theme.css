@@ -1,0 +1,97 @@
+/*
+ * Tokens de tema do AquaControl_Brain — "Sci-Fi HUD Tático" (01-espc-geral/05_dashboard_futurista_react.md):
+ * Dark Cyan / Electric Blue sobre fundo quase-preto azulado, cantos chanfrados, glow neon.
+ *
+ * Para criar um tema novo/alternativo: duplique este arquivo (ex.: theme-alt.css), troque
+ * os valores abaixo e importe-o no lugar deste em src/styles/global.css — nenhum outro
+ * CSS/componente precisa mudar, já que tudo referencia estas variáveis, nunca cores cruas.
+ */
+
+:root {
+    /* --- Superfícies --- */
+    --cor-fundo: #030914;
+    --cor-fundo-elevado: #071527;
+    --cor-fundo-painel: #0a1c33;
+    --cor-borda: #124059;
+    --cor-borda-forte: #1c6a8f;
+
+    /* --- Texto --- */
+    --cor-texto: #d6f6ff;
+    --cor-texto-secundario: #5f8aa3;
+
+    /* --- Cores de destaque (marca) --- */
+    --cor-primaria: #00f0ff; /* ciano neon */
+    --cor-primaria-rgb: 0, 240, 255;
+    --cor-secundaria: #0077ff; /* azul elétrico */
+    --cor-secundaria-rgb: 0, 119, 255;
+    --cor-laranja: #ff9800; /* accent do sensor de ambiente, convenção herdada do AquaControl_OS */
+    --cor-laranja-rgb: 255, 152, 0;
+
+    /* --- Cores de status --- */
+    --cor-sucesso: #00ff9d;
+    --cor-erro: #ff3860;
+    --cor-alerta: #ffca28;
+
+    /* --- Tipografia --- */
+    --fonte-titulo: 'Orbitron', 'Segoe UI', sans-serif; /* rótulos/títulos táticos */
+    --fonte-mono: 'Share Tech Mono', 'Consolas', monospace; /* dados/telemetria/logs */
+
+    /* --- Espaçamento e forma --- */
+    --espaco-xs: 4px;
+    --espaco-sm: 8px;
+    --espaco-md: 16px;
+    --espaco-lg: 24px;
+    --espaco-xl: 32px;
+    --corte-hud: 14px; /* tamanho do chanfro dos cantos dos painéis */
+
+    /* --- Efeitos neon --- */
+    --glow-cyan-sm: 0 0 4px rgba(var(--cor-primaria-rgb), 0.8), 0 0 10px rgba(var(--cor-primaria-rgb), 0.35);
+    --glow-cyan-md: 0 0 8px rgba(var(--cor-primaria-rgb), 0.9), 0 0 22px rgba(var(--cor-primaria-rgb), 0.4);
+    --glow-blue-md: 0 0 8px rgba(var(--cor-secundaria-rgb), 0.9), 0 0 22px rgba(var(--cor-secundaria-rgb), 0.35);
+    --glow-laranja-md: 0 0 8px rgba(var(--cor-laranja-rgb), 0.9), 0 0 22px rgba(var(--cor-laranja-rgb), 0.35);
+}
+
+/*
+ * Modo Panico (botao de emergencia, ver HeaderTatico.jsx/Dashboard.jsx): reaproveita o
+ * mesmo mecanismo descrito acima — so sobrescreve as variaveis, nenhum componente precisa
+ * saber que esta em modo panico, ja que tudo referencia var(--cor-primaria) etc. Aplicado
+ * como classe no container raiz do Dashboard enquanto modoPanico=true.
+ */
+.dashboard--panico {
+    --cor-fundo: #170307;
+    --cor-fundo-elevado: #240509;
+    --cor-fundo-painel: #2b060c;
+    --cor-borda: #6e131f;
+    --cor-borda-forte: #ff3860;
+
+    --cor-primaria: #ff3860;
+    --cor-primaria-rgb: 255, 56, 96;
+    --cor-secundaria: #ff7043;
+    --cor-secundaria-rgb: 255, 112, 67;
+
+    --glow-cyan-sm: 0 0 4px rgba(255, 56, 96, 0.8), 0 0 10px rgba(255, 56, 96, 0.35);
+    --glow-cyan-md: 0 0 8px rgba(255, 56, 96, 0.9), 0 0 22px rgba(255, 56, 96, 0.4);
+    --glow-blue-md: 0 0 8px rgba(255, 112, 67, 0.9), 0 0 22px rgba(255, 112, 67, 0.35);
+
+    transition: background-color 0.6s ease;
+}
+
+/* Vinheta pulsante de alerta cobrindo a tela toda — só um efeito visual (pointer-events
+   desligado, não intercepta clique nenhum), reforça a sensação de "modo de emergencia". */
+.dashboard--panico::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 200;
+    animation: panico-vinheta 1.8s ease-in-out infinite;
+}
+@keyframes panico-vinheta {
+    0%,
+    100% {
+        box-shadow: inset 0 0 80px rgba(255, 56, 96, 0.12);
+    }
+    50% {
+        box-shadow: inset 0 0 160px rgba(255, 56, 96, 0.32);
+    }
+}

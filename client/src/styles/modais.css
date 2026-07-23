@@ -1,0 +1,229 @@
+/* Estilos dos modais Sci-Fi HUD: backdrop, painel, mapeamento de portas, widgets. */
+
+.modal-hud__backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 9, 20, 0.78);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--espaco-md);
+    z-index: 100;
+}
+
+.modal-hud {
+    width: 100%;
+    max-width: 480px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--glow-cyan-md);
+}
+.modal-hud--grande {
+    max-width: 720px;
+}
+
+.modal-hud__cabecalho {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--espaco-sm);
+    margin-bottom: var(--espaco-md);
+}
+
+.modal-hud__corpo {
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.modal-hud__acoes {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--espaco-md);
+}
+
+/* --- Mapeamento de portas (16 saidas) --- */
+.mapeamento-portas__grade {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-xs);
+}
+
+.mapeamento-portas__linha {
+    display: grid;
+    grid-template-columns: 32px 1fr auto auto;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: 6px;
+    border: 1px solid var(--cor-borda);
+}
+.mapeamento-portas__linha--desativada {
+    opacity: 0.5;
+}
+
+.mapeamento-portas__indice {
+    color: var(--cor-texto-secundario);
+    text-align: center;
+}
+
+.mapeamento-portas__status {
+    font-family: var(--fonte-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid var(--cor-texto-secundario);
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+.mapeamento-portas__status--on {
+    color: var(--cor-sucesso);
+    border-color: var(--cor-sucesso);
+    box-shadow: 0 0 6px rgba(0, 255, 157, 0.4);
+}
+
+/* --- Widgets (Layout/Personalizar) --- */
+.modal-widgets__lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+}
+.modal-widgets__item {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    font-family: var(--fonte-mono);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: var(--espaco-sm);
+    border: 1px solid var(--cor-borda);
+}
+.modal-widgets__item input {
+    accent-color: var(--cor-primaria);
+    width: 16px;
+    height: 16px;
+}
+
+/* --- Criar Tema (14-espc) --- */
+.modal-temas__nome {
+    width: 100%;
+    margin-bottom: var(--espaco-md);
+}
+.modal-temas__lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-xs);
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.modal-temas__linha {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: 8px 10px;
+    border: 1px solid var(--cor-borda);
+    flex-wrap: wrap;
+}
+.modal-temas__linha--selecionada {
+    border-color: var(--cor-borda-forte);
+    background: rgba(var(--cor-primaria-rgb), 0.05);
+}
+.modal-temas__checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    font-family: var(--fonte-mono);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.modal-temas__checkbox input {
+    accent-color: var(--cor-primaria);
+    width: 16px;
+    height: 16px;
+}
+.modal-temas__estados {
+    display: flex;
+    gap: 6px;
+}
+.modal-temas__estado {
+    font-family: var(--fonte-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 5px 10px;
+    background: transparent;
+    border: 1px solid var(--cor-texto-secundario);
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.modal-temas__estado--ligado {
+    color: var(--cor-sucesso);
+    border-color: var(--cor-sucesso);
+    box-shadow: 0 0 6px rgba(0, 255, 157, 0.4);
+}
+.modal-temas__estado--desligado {
+    color: var(--cor-erro);
+    border-color: var(--cor-erro);
+    box-shadow: 0 0 6px rgba(255, 56, 96, 0.4);
+}
+
+/* --- Menu de Acoes (14-espc) --- */
+.menu-acoes__lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+}
+.menu-acoes__item {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    font-family: var(--fonte-titulo);
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 12px var(--espaco-md);
+    background: transparent;
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    transition: all 0.2s ease;
+}
+.menu-acoes__item:hover {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+
+/* --- Responsivo --- */
+@media (max-width: 600px) {
+    .modal-hud {
+        max-height: 92vh;
+        padding: var(--espaco-sm);
+    }
+
+    .mapeamento-portas__linha {
+        display: flex;
+        flex-wrap: wrap;
+        row-gap: 6px;
+    }
+    .mapeamento-portas__indice {
+        order: 1;
+    }
+    .mapeamento-portas__linha .hud-input {
+        order: 2;
+        flex: 1 1 100%;
+    }
+    .mapeamento-portas__linha > button:not(.mapeamento-portas__status) {
+        order: 3;
+    }
+    .mapeamento-portas__status {
+        order: 4;
+        margin-left: auto;
+    }
+}

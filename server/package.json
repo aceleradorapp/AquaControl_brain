@@ -1,0 +1,22 @@
+{
+  "name": "aquacontrol-brain-server",
+  "version": "1.0.0",
+  "description": "Servidor central (Node.js + Express + SQLite) do AquaControl_Brain — API REST de gerenciamento dos ESPs do aquário",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "migrate": "node -e \"require('./src/database/db.js'); console.log('Migrations aplicadas com sucesso.');\""
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}

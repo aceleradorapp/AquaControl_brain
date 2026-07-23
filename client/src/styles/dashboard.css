@@ -1,0 +1,821 @@
+/* Layout e estilos específicos dos componentes do Dashboard. Efeitos genéricos (glow,
+   painel chanfrado, tags) ficam em hud.css — aqui só o que é próprio de cada painel. */
+
+.dashboard {
+    min-height: 100%;
+    padding: var(--espaco-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-lg);
+}
+
+.dashboard__colunas {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--espaco-lg);
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .dashboard__colunas {
+        grid-template-columns: 1fr;
+    }
+}
+
+.coluna {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-lg);
+}
+
+.painel-cabecalho {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--espaco-sm);
+    gap: var(--espaco-sm);
+    flex-wrap: wrap;
+}
+
+.painel-cabecalho h2 {
+    font-size: 0.95rem;
+}
+
+/* --- Header tático --- */
+.header-tatico {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--espaco-md);
+}
+
+.header-tatico__titulo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.header-tatico__titulo h1 {
+    font-size: 1.3rem;
+}
+
+.header-tatico__status {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-lg);
+    flex-wrap: wrap;
+}
+
+.header-tatico__badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--fonte-mono);
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    border: 1px solid var(--cor-borda);
+    letter-spacing: 0.05em;
+}
+.header-tatico__badge.online {
+    color: var(--cor-sucesso);
+    border-color: var(--cor-sucesso);
+    text-shadow: 0 0 6px rgba(0, 255, 157, 0.6);
+}
+.header-tatico__badge.offline {
+    color: var(--cor-erro);
+    border-color: var(--cor-erro);
+    text-shadow: 0 0 6px rgba(255, 56, 96, 0.6);
+}
+
+.header-tatico__latencia {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.header-tatico__relogio {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.1;
+}
+.header-tatico__hora {
+    font-size: 1.4rem;
+    color: var(--cor-primaria);
+    text-shadow: var(--glow-cyan-sm);
+    font-family: var(--fonte-mono);
+}
+
+/* --- Nucleo Ativo: indicador giratorio central, "sistema em execucao" (decorativo) --- */
+.nucleo-ativo {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: none;
+}
+@media (min-width: 860px) {
+    .nucleo-ativo {
+        display: block;
+    }
+}
+.nucleo-ativo__anel {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+}
+.nucleo-ativo__anel--1 {
+    border-top-color: var(--cor-primaria);
+    border-right-color: var(--cor-primaria);
+    filter: drop-shadow(0 0 3px var(--cor-primaria));
+    animation: nucleo-girar 1.6s linear infinite;
+}
+.nucleo-ativo__anel--2 {
+    inset: 7px;
+    border-bottom-color: var(--cor-secundaria);
+    border-left-color: var(--cor-secundaria);
+    filter: drop-shadow(0 0 3px var(--cor-secundaria));
+    animation: nucleo-girar-reverso 2.1s linear infinite;
+}
+.nucleo-ativo__ponto {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cor-primaria);
+    box-shadow: 0 0 6px var(--cor-primaria), 0 0 12px var(--cor-primaria);
+    animation: nucleo-pulso 1.3s ease-in-out infinite;
+}
+@keyframes nucleo-girar {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+@keyframes nucleo-girar-reverso {
+    from {
+        transform: rotate(360deg);
+    }
+    to {
+        transform: rotate(0deg);
+    }
+}
+@keyframes nucleo-pulso {
+    0%,
+    100% {
+        transform: translate(-50%, -50%) scale(0.85);
+        opacity: 0.7;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+}
+
+/* --- Botao de Panico / Normalizar --- */
+.botao-panico,
+.botao-normalizar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--fonte-titulo);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    cursor: pointer;
+    background: rgba(255, 56, 96, 0.08);
+    border: 1px solid var(--cor-erro);
+    color: var(--cor-erro);
+    transition: all 0.2s ease;
+}
+.botao-panico:hover {
+    box-shadow: 0 0 10px rgba(255, 56, 96, 0.6);
+    background: rgba(255, 56, 96, 0.18);
+}
+.botao-normalizar {
+    background: rgba(0, 255, 157, 0.08);
+    border-color: var(--cor-sucesso);
+    color: var(--cor-sucesso);
+    animation: normalizar-pulso 1.2s ease-in-out infinite;
+}
+.botao-normalizar:hover {
+    box-shadow: 0 0 10px rgba(0, 255, 157, 0.6);
+    background: rgba(0, 255, 157, 0.18);
+}
+@keyframes normalizar-pulso {
+    0%,
+    100% {
+        box-shadow: 0 0 4px rgba(0, 255, 157, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 12px rgba(0, 255, 157, 0.7);
+    }
+}
+
+.painel-cabecalho__acoes {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    flex-wrap: wrap;
+}
+
+.painel-equipamentos__status--on {
+    color: var(--cor-sucesso);
+    border: 1px solid var(--cor-sucesso);
+    padding: 2px 8px;
+}
+.painel-equipamentos__status--demo {
+    color: var(--cor-alerta);
+    border: 1px solid var(--cor-alerta);
+    padding: 2px 8px;
+}
+.painel-equipamentos__vazio {
+    white-space: normal;
+    line-height: 1.5;
+    padding: var(--espaco-sm) 0;
+}
+
+/* --- Gauges --- */
+.gauges-painel__grid {
+    display: flex;
+    justify-content: space-around;
+    gap: var(--espaco-md);
+    flex-wrap: wrap;
+}
+
+.sensor-gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+.sensor-gauge__valor {
+    font-family: var(--fonte-titulo);
+    font-size: 22px;
+    font-weight: 700;
+}
+.sensor-gauge__unidade {
+    font-family: var(--fonte-mono);
+    font-size: 11px;
+}
+
+/* --- Gráfico --- */
+.grafico-temperatura .recharts-wrapper {
+    font-family: var(--fonte-mono);
+}
+
+.abas-periodo {
+    display: flex;
+    gap: 4px;
+}
+.abas-periodo__item {
+    background: transparent;
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto-secundario);
+    font-family: var(--fonte-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 5px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+.abas-periodo__item--ativo {
+    color: var(--cor-primaria);
+    border-color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+
+/* --- Barra de energia (Umidade do Ar) --- */
+.barra-energia {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+.barra-energia__cabecalho {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+.barra-energia__valor {
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+.barra-energia__trilho {
+    display: flex;
+    gap: 2px;
+}
+.barra-energia__segmento {
+    flex: 1;
+    height: 12px;
+    background: var(--cor-borda);
+    clip-path: polygon(15% 0, 100% 0, 85% 100%, 0 100%);
+    transition: background 0.3s ease;
+}
+
+/* --- Equipamentos --- */
+.painel-equipamentos__abas {
+    margin-bottom: var(--espaco-sm);
+}
+
+/* Altura fixa + scroll (14-espc) — a lista podia crescer e empurrar o resto da coluna pra
+   baixo quando havia muita saída mapeada; agora fica num tamanho previsível, com scroll
+   interno (mesmo padrão de .gestao-esps__lista). */
+.painel-equipamentos__lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.interruptor {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--espaco-sm) var(--espaco-md);
+    border: 1px solid var(--cor-borda);
+    background: rgba(255, 255, 255, 0.02);
+}
+.interruptor__info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.interruptor__nome {
+    font-family: var(--fonte-titulo);
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+}
+.interruptor__botao {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--fonte-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    background: transparent;
+    border: 1px solid var(--cor-texto-secundario);
+    color: var(--cor-texto-secundario);
+    padding: 6px 12px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+.interruptor--ativo .interruptor__botao {
+    color: var(--cor-sucesso);
+    border-color: var(--cor-sucesso);
+    box-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
+}
+.interruptor--bloqueado {
+    opacity: 0.85;
+}
+.interruptor--bloqueado .interruptor__botao {
+    color: var(--cor-laranja);
+    border-color: var(--cor-laranja);
+    cursor: not-allowed;
+}
+
+/* --- Matriz de Relés 16CH (Diagnostico de bancada) ---
+   Botões pequenos (só número + status, o nome vira tooltip via title= no JSX) — 8 colunas
+   em vez de 4, cada quadrado com no mínimo 44px (referência de área tocável por dedo em
+   telas touch/tablet), sem sobrar espaço vazio como no grid grande anterior de 4 colunas. */
+.matriz-reles__acoes {
+    display: flex;
+    gap: var(--espaco-sm);
+    margin-bottom: var(--espaco-sm);
+}
+.matriz-reles__botao-acao {
+    flex: 1;
+    font-family: var(--fonte-titulo);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 8px 10px;
+    cursor: pointer;
+    background: transparent;
+    transition: box-shadow 0.2s ease;
+}
+.matriz-reles__botao-acao--ligar {
+    border: 1px solid var(--cor-sucesso);
+    color: var(--cor-sucesso);
+}
+.matriz-reles__botao-acao--ligar:hover {
+    box-shadow: 0 0 8px rgba(0, 255, 157, 0.5);
+}
+.matriz-reles__botao-acao--desligar {
+    border: 1px solid var(--cor-erro);
+    color: var(--cor-erro);
+}
+.matriz-reles__botao-acao--desligar:hover {
+    box-shadow: 0 0 8px rgba(255, 56, 96, 0.5);
+}
+
+.matriz-reles__grade {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(38px, 1fr));
+    gap: 6px;
+}
+
+.matriz-reles__botao {
+    aspect-ratio: 1;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: var(--cor-fundo);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    padding: 2px;
+    transition: all 0.2s ease;
+}
+.matriz-reles__botao:hover {
+    border-color: var(--cor-borda-forte);
+}
+.matriz-reles__botao--on {
+    background: rgba(var(--cor-primaria-rgb), 0.15);
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-md);
+}
+/* Porta desabilitada ("Oculta" no Mapeamento de Saidas) — laranja, status BLOCKED, não
+   clicável (o próprio elemento fica disabled no JSX, isto só cuida da aparência). */
+.matriz-reles__botao--bloqueado {
+    background: rgba(var(--cor-laranja-rgb), 0.12);
+    border-color: var(--cor-laranja);
+    color: var(--cor-laranja);
+    cursor: not-allowed;
+}
+.matriz-reles__botao--bloqueado:hover {
+    border-color: var(--cor-laranja);
+}
+.matriz-reles__botao:disabled {
+    cursor: not-allowed;
+    opacity: 0.85;
+}
+
+.matriz-reles__numero {
+    font-size: 0.72rem;
+    font-weight: bold;
+}
+.matriz-reles__status {
+    font-size: 0.55rem;
+    letter-spacing: 0.04em;
+}
+
+/* --- Temas (14-espc) --- */
+.painel-temas__lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.painel-temas__item {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+}
+.painel-temas__botao {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    font-family: var(--fonte-titulo);
+    font-size: 0.82rem;
+    letter-spacing: 0.03em;
+    padding: var(--espaco-sm) var(--espaco-md);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.painel-temas__botao:hover {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+.painel-temas__nome {
+    flex: 1;
+    text-align: left;
+}
+.painel-temas__vazio {
+    white-space: normal;
+    line-height: 1.5;
+    padding: var(--espaco-sm) 0;
+}
+
+/* --- Gestão de ESPs --- */
+.botao-icone {
+    background: transparent;
+    border: 1px solid var(--cor-borda-forte);
+    color: var(--cor-primaria);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: box-shadow 0.2s ease;
+}
+.botao-icone:hover {
+    box-shadow: var(--glow-cyan-sm);
+}
+.botao-icone--erro {
+    color: var(--cor-erro);
+    border-color: var(--cor-erro);
+}
+
+.gestao-esps__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    overflow: hidden;
+    margin-bottom: var(--espaco-sm);
+}
+
+.gestao-esps__chave {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    font-family: var(--fonte-mono);
+    font-size: 0.8rem;
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+}
+.gestao-esps__chave input {
+    accent-color: var(--cor-sucesso);
+    width: 16px;
+    height: 16px;
+}
+
+.hud-input {
+    background: var(--cor-fundo);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    font-family: var(--fonte-mono);
+    padding: 8px 10px;
+    font-size: 0.85rem;
+}
+.hud-input:focus {
+    outline: none;
+    border-color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+
+.botao-primario {
+    background: rgba(var(--cor-primaria-rgb), 0.1);
+    border: 1px solid var(--cor-primaria);
+    color: var(--cor-primaria);
+    font-family: var(--fonte-titulo);
+    letter-spacing: 0.08em;
+    padding: 8px 12px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: box-shadow 0.2s ease;
+}
+.botao-primario:hover {
+    box-shadow: var(--glow-cyan-md);
+}
+.botao-primario:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.gestao-esps__lista {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    max-height: 260px;
+    overflow-y: auto;
+}
+.gestao-esps__lista li {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: var(--espaco-sm);
+    border: 1px solid var(--cor-borda);
+    background: rgba(255, 255, 255, 0.02);
+}
+.gestao-esps__item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.gestao-esps__item:hover {
+    border-color: var(--cor-borda-forte);
+    background: rgba(var(--cor-primaria-rgb), 0.05);
+}
+
+/* --- Biblioteca de QR Codes --- */
+.painel-qrcodes__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    overflow: hidden;
+    margin-bottom: var(--espaco-sm);
+}
+.painel-qrcodes__lista {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    max-height: 220px;
+    overflow-y: auto;
+}
+.painel-qrcodes__lista li {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: var(--espaco-sm);
+    border: 1px solid var(--cor-borda);
+    background: rgba(255, 255, 255, 0.02);
+}
+.painel-qrcodes__item--ativo {
+    border-color: var(--cor-sucesso) !important;
+    box-shadow: 0 0 8px rgba(0, 255, 157, 0.3);
+}
+.painel-qrcodes__nome {
+    flex: 1;
+    font-family: var(--fonte-titulo);
+    font-size: 0.82rem;
+}
+.painel-qrcodes__tag-ativo {
+    color: var(--cor-sucesso);
+}
+.painel-qrcodes__vazio {
+    border: none !important;
+    background: none !important;
+}
+
+/* --- Modal de status ao vivo do modulo (GET /api/status via Brain) --- */
+.status-modulo__lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-xs);
+}
+.status-modulo__linha {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--espaco-md);
+    padding: 6px 0;
+    border-bottom: 1px solid var(--cor-borda);
+}
+.status-modulo__valor {
+    color: var(--cor-primaria);
+    font-size: 0.8rem;
+    text-align: right;
+}
+.gestao-esps__info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+.gestao-esps__nome {
+    font-family: var(--fonte-titulo);
+    font-size: 0.82rem;
+}
+.gestao-esps__vazio {
+    border: none !important;
+    background: none !important;
+}
+
+.mensagem-erro {
+    color: var(--cor-erro);
+}
+
+/* --- Terminal de logs --- */
+.terminal-logs__corpo {
+    font-family: var(--fonte-mono);
+    font-size: 0.76rem;
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: var(--espaco-sm);
+}
+.terminal-logs__linha {
+    color: var(--cor-texto-secundario);
+}
+.terminal-logs__linha--info {
+    color: var(--cor-texto);
+}
+.terminal-logs__linha--sucesso {
+    color: var(--cor-sucesso);
+}
+.terminal-logs__linha--erro {
+    color: var(--cor-erro);
+}
+.terminal-logs__linha--alerta {
+    color: var(--cor-alerta);
+}
+
+/* ==========================================================================
+   Responsivo — celular, tablet e monitor em fullscreen
+   (01-espc-geral/06_mapeamento_e_widgets_custom.md, item D)
+   ========================================================================== */
+
+/* Monitor grande/fullscreen: limita a largura útil pra não esticar demais os
+   painéis em telas ultrawide/4K, mantendo tudo centralizado e legível. */
+@media (min-width: 1600px) {
+    .dashboard {
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+}
+
+/* Tablet: grid já colapsa pra 1 coluna em 1100px (regra existente acima); aqui só
+   ajustes finos de espaçamento/tamanho pra usar melhor a largura intermediária. */
+@media (max-width: 900px) {
+    .dashboard {
+        padding: var(--espaco-md);
+    }
+
+    .header-tatico {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .header-tatico__status {
+        justify-content: space-between;
+    }
+    .header-tatico__relogio {
+        align-items: flex-start;
+    }
+}
+
+/* Celular */
+@media (max-width: 560px) {
+    .dashboard {
+        padding: var(--espaco-sm);
+        gap: var(--espaco-md);
+    }
+
+    .header-tatico__titulo h1 {
+        font-size: 1.05rem;
+    }
+    .header-tatico__status {
+        gap: var(--espaco-sm);
+        width: 100%;
+    }
+    .header-tatico__badge {
+        font-size: 0.68rem;
+    }
+
+    .painel-cabecalho {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .gauges-painel__grid {
+        justify-content: space-between;
+    }
+    .sensor-gauge svg {
+        width: 96px;
+        height: 96px;
+    }
+
+    .abas-periodo {
+        width: 100%;
+    }
+    .abas-periodo__item {
+        flex: 1;
+        text-align: center;
+    }
+
+    .interruptor {
+        flex-wrap: wrap;
+        gap: var(--espaco-sm);
+    }
+
+    .gestao-esps__lista {
+        max-height: 200px;
+    }
+
+    .matriz-reles__grade {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}

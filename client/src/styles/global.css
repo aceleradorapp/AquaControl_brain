@@ -1,0 +1,27 @@
+@import './theme.css';
+@import './hud.css';
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background-color: var(--cor-fundo);
+    color: var(--cor-texto);
+    font-family: var(--fonte-mono);
+}
+
+a {
+    color: var(--cor-primaria);
+}
+
+::selection {
+    background: rgba(var(--cor-primaria-rgb), 0.35);
+}

@@ -1,0 +1,164 @@
+/*
+ * Utilitários visuais do HUD tático — painéis chanfrados, grade de fundo, textos com
+ * glow, marcadores de canto. Qualquer componente usa estas classes em vez de repetir
+ * clip-path/box-shadow cru, então o visual muda tudo de uma vez trocando as variáveis
+ * de theme.css.
+ */
+
+.hud-grid-bg {
+    background-color: var(--cor-fundo);
+    background-image: linear-gradient(rgba(var(--cor-primaria-rgb), 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(var(--cor-primaria-rgb), 0.06) 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
+/* Painel padrão: cantos chanfrados (recorte octogonal) + borda fina + leve degradê */
+.hud-painel {
+    position: relative;
+    background: linear-gradient(180deg, var(--cor-fundo-painel), var(--cor-fundo-elevado));
+    border: 1px solid var(--cor-borda);
+    clip-path: polygon(
+        var(--corte-hud) 0,
+        100% 0,
+        100% calc(100% - var(--corte-hud)),
+        calc(100% - var(--corte-hud)) 100%,
+        0 100%,
+        0 var(--corte-hud)
+    );
+    padding: var(--espaco-md);
+}
+
+.hud-titulo {
+    font-family: var(--fonte-titulo);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--cor-primaria);
+    text-shadow: var(--glow-cyan-sm);
+    margin: 0;
+}
+
+.hud-mono {
+    font-family: var(--fonte-mono);
+}
+
+/* Pequeno marcador textual de canto (ex.: "SYS.VER 2.0", "LATENCY 12ms") */
+.hud-tag {
+    font-family: var(--fonte-mono);
+    font-size: 0.7rem;
+    color: var(--cor-texto-secundario);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.hud-linha {
+    border: none;
+    border-top: 1px solid var(--cor-borda);
+    margin: var(--espaco-sm) 0;
+}
+
+.hud-glow-cyan {
+    box-shadow: var(--glow-cyan-md);
+}
+.hud-glow-blue {
+    box-shadow: var(--glow-blue-md);
+}
+.hud-glow-laranja {
+    box-shadow: var(--glow-laranja-md);
+}
+
+/* Marcadores em L nos 2 cantos opostos do container — reforço decorativo de "viewfinder" */
+.hud-corner-marks {
+    position: relative;
+}
+.hud-corner-marks::before,
+.hud-corner-marks::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--cor-primaria);
+    opacity: 0.8;
+    pointer-events: none;
+}
+.hud-corner-marks::before {
+    top: -1px;
+    left: -1px;
+    border-right: none;
+    border-bottom: none;
+}
+.hud-corner-marks::after {
+    bottom: -1px;
+    right: -1px;
+    border-left: none;
+    border-top: none;
+}
+
+.hud-status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: var(--espaco-xs);
+}
+/* Verde brilhante pulsante = online/respondendo de verdade (08-espc) */
+.hud-status-dot.online {
+    background: var(--cor-sucesso);
+    box-shadow: 0 0 6px var(--cor-sucesso);
+    animation: hud-pulso-online 1.6s ease-in-out infinite;
+}
+/* Vermelho neon fixo (sem pulso) = offline/inacessível */
+.hud-status-dot.offline {
+    background: var(--cor-erro);
+    box-shadow: 0 0 6px var(--cor-erro), 0 0 12px rgba(255, 56, 96, 0.5);
+}
+
+@keyframes hud-pulso-online {
+    0%,
+    100% {
+        box-shadow: 0 0 4px var(--cor-sucesso);
+        opacity: 0.85;
+    }
+    50% {
+        box-shadow: 0 0 10px var(--cor-sucesso), 0 0 16px rgba(0, 255, 157, 0.6);
+        opacity: 1;
+    }
+}
+
+.hud-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--cor-borda-forte) transparent;
+}
+.hud-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.hud-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--cor-borda-forte);
+    border-radius: 3px;
+}
+
+/* Tooltip customizado (CSS puro, via atributo data-tooltip) — usado no lugar do title=""
+   nativo do navegador nos lugares onde um tooltip feio/inconsistente quebraria a estética
+   do HUD (ver MatrizReles16CH.jsx). Só aparece se o elemento tiver data-tooltip preenchido. */
+.hud-tooltip {
+    position: relative;
+}
+.hud-tooltip[data-tooltip]:hover::after,
+.hud-tooltip[data-tooltip]:focus-visible::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 7px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda-forte);
+    color: var(--cor-texto);
+    font-family: var(--fonte-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+    padding: 4px 9px;
+    white-space: nowrap;
+    z-index: 30;
+    box-shadow: var(--glow-cyan-sm);
+    pointer-events: none;
+}
