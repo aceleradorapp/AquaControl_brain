@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -61,36 +62,44 @@ export default function WidgetSlot({ chave, widget, modoCompacto }) {
                 </button>
             )}
 
-            <AnimatePresence>
-                {modoCompacto && expandido && (
-                    <motion.div
-                        className="widget-expandido__backdrop"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setExpandido(false)}
-                    >
+            {/* Via createPortal direto no <body> (20.1-espc) — mesmo motivo do ModalHud.jsx:
+                ".widget-slot" precisa de position+z-index pro arrasto funcionar, e isso
+                prende qualquer "position:fixed" descendente dentro do stacking context dele.
+                Sem o portal, este modal expandido só ficava por cima dos widgets da MESMA
+                coluna/contexto, não de todos. */}
+            {createPortal(
+                <AnimatePresence>
+                    {modoCompacto && expandido && (
                         <motion.div
-                            className="widget-expandido__conteudo"
-                            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 12 }}
-                            onClick={(evento) => evento.stopPropagation()}
+                            className="widget-expandido__backdrop"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setExpandido(false)}
                         >
-                            <button
-                                className="widget-expandido__fechar"
-                                type="button"
-                                onClick={() => setExpandido(false)}
-                                aria-label="Fechar"
-                                title="Fechar"
+                            <motion.div
+                                className="widget-expandido__conteudo"
+                                initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 12 }}
+                                onClick={(evento) => evento.stopPropagation()}
                             >
-                                <X size={16} />
-                            </button>
-                            {widget.render()}
+                                <button
+                                    className="widget-expandido__fechar"
+                                    type="button"
+                                    onClick={() => setExpandido(false)}
+                                    aria-label="Fechar"
+                                    title="Fechar"
+                                >
+                                    <X size={16} />
+                                </button>
+                                {widget.render()}
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
         </div>
     );
 }

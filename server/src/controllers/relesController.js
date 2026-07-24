@@ -111,4 +111,37 @@ async function consultarStatusEsp(req, res) {
     }
 }
 
-module.exports = { consultarReles, acionarReles, consultarStatusEsp };
+// POST /api/modulos/:id/config-dispositivo — proxy pro POST /api/config-dispositivo do
+// proprio ESP32 (12-espc, "Editar Controlador" no dashboard): body { hostname } (mesmo
+// formato que o firmware espera, repassado sem alteracao). O ESP salva na NVS e reinicia
+// sozinho pra aplicar de verdade (WiFi.setHostname so tem efeito completo num boot novo) —
+// a resposta 200 normalmente chega ANTES do reset (o firmware da um delay(300) antes de
+// reiniciar de proposito, exatamente pra isso), mas se a conexao cair um instante antes, o
+// client trata como uma falha comum, ja que o efeito (reiniciar com o hostname novo)
+// acontece de qualquer jeito.
+async function configurarDispositivoEsp(req, res) {
+    const { id } = req.params;
+    const modulo = buscarModulo(id);
+
+    if (!modulo) {
+        return res.status(404).json({ erro: 'Modulo nao encontrado.' });
+    }
+
+    try {
+        const resposta = await fetch(`http://${modulo.ip}/api/config-dispositivo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        const dados = await resposta.json();
+        if (!resposta.ok) {
+            return res.json({ disponivel: false, motivo: dados.status || `ESP respondeu HTTP ${resposta.status}` });
+        }
+        res.json({ disponivel: true, ...dados });
+    } catch (erro) {
+        res.json({ disponivel: false, motivo: `Nao foi possivel falar com o modulo em ${modulo.ip}: ${erro.message}` });
+    }
+}
+
+module.exports = { consultarReles, acionarReles, consultarStatusEsp, configurarDispositivoEsp };

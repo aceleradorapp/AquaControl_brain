@@ -1,7 +1,7 @@
 const express = require('express');
 const { listarModulos, criarModulo, atualizarModulo, deletarModulo } = require('../controllers/modulosController');
 const { buscarPortas, salvarPortas } = require('../controllers/portasMapeamentoController');
-const { consultarReles, acionarReles, consultarStatusEsp } = require('../controllers/relesController');
+const { consultarReles, acionarReles, consultarStatusEsp, configurarDispositivoEsp } = require('../controllers/relesController');
 const { listarTemas, criarTema } = require('../controllers/temasController');
 
 const router = express.Router();
@@ -25,6 +25,10 @@ router.post('/:id/reles', acionarReles);
 // GET /api/status do proprio ESP32 (uptime/RSSI/SSID/MCP23017), usado pelo modal de
 // diagnostico rapido em Modulos de Controladores.
 router.get('/:id/status', consultarStatusEsp);
+
+// POST /api/config-dispositivo do proprio ESP32 (12-espc: hostname editavel) — usado pelo
+// Modal de Editar Controlador em Modulos de Controladores.
+router.post('/:id/config-dispositivo', configurarDispositivoEsp);
 
 // Temas (14-espc): grupos nomeados de relés com estado definido, escolhidos a partir do
 // Mapeamento de Portas — ver 01-espc-geral/14_menu_de_acoes.md. Deletar/aplicar um tema

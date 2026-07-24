@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CircuitBoard, Plus, Server, Trash2 } from 'lucide-react';
+import { CircuitBoard, Cpu, Pencil, Plus, Server, Trash2 } from 'lucide-react';
 import ModalInfo from './ModalInfo';
+import ModalEditarModulo from './ModalEditarModulo';
+import ModalDiagnosticoCompleto from './ModalDiagnosticoCompleto';
 
 const TIPOS = ['atuador', 'telemetria', 'display'];
 
 // Rótulos de exibição pros campos que vêm de GET /api/modulos/:id/status (que por sua vez
 // é um proxy do Brain pro GET /api/status do próprio ESP32 — ver relesController.js e
 // AquaControl_Hardware/src/main.cpp:handleGetStatus). Só os campos aqui listados aparecem
-// no modal, na ordem declarada.
+// no modal rápido de status, na ordem declarada — o resto do que o ESP manda (12-espc:
+// diagnostico bem mais completo) só aparece no Modal de Diagnostico Completo, ver
+// ModalDiagnosticoCompleto.jsx (reaproveita a MESMA resposta, sem precisar buscar de novo).
 const CAMPOS_STATUS = [
     ['ip', 'IP'],
+    ['hostname', 'Hostname'],
     ['ssid', 'SSID'],
     ['rssi_dbm', 'Sinal Wi-Fi (RSSI)'],
     ['uptime_s', 'Uptime'],
@@ -39,7 +44,7 @@ function formatarValorStatus(chave, valor) {
 // periódico em background no server — ver services/statusModulosService.js). O LED
 // reflete "online", não "ativo": verde pulsante quando o módulo responde, vermelho neon
 // quando não responde — "ativo" continua só como texto no título (tooltip) do LED.
-export default function ModulosControladores({ modulos, onCriar, onRemover, carregando, erro, onAbrirEsquematico }) {
+export default function ModulosControladores({ modulos, onCriar, onRemover, onAtualizarModulo, carregando, erro, onAbrirEsquematico, registrarLog }) {
     const [formAberto, setFormAberto] = useState(false);
     const [form, setForm] = useState({ nome: '', ip: '', tipo: TIPOS[0], ativo: true });
     const [enviando, setEnviando] = useState(false);
@@ -50,6 +55,11 @@ export default function ModulosControladores({ modulos, onCriar, onRemover, carr
     const [moduloClicado, setModuloClicado] = useState(null);
     const [statusModulo, setStatusModulo] = useState(null);
     const [carregandoStatus, setCarregandoStatus] = useState(false);
+
+    // Editar Controlador / Diagnostico Completo (12-espc) — os dois operam sobre o MESMO
+    // "moduloClicado"/"statusModulo" já carregados acima; nenhum precisa buscar nada de novo.
+    const [modalEditarAberto, setModalEditarAberto] = useState(false);
+    const [modalDiagnosticoAberto, setModalDiagnosticoAberto] = useState(false);
 
     async function abrirStatusModulo(modulo) {
         setModuloClicado(modulo);
@@ -204,23 +214,62 @@ export default function ModulosControladores({ modulos, onCriar, onRemover, carr
                     <p className="mensagem-erro hud-tag">{statusModulo.motivo ?? 'Modulo inacessivel.'}</p>
                 )}
 
-                {/* Esquematico Interativo (16-espc) — so faz sentido pro modulo de reles
-                    (tipo "atuador"); fecha este modal de status e abre o esquematico no
-                    lugar, em vez de empilhar dois modais. */}
-                {moduloClicado?.tipo === 'atuador' && (
-                    <button
-                        className="botao-primario status-modulo__botao-esquematico"
-                        type="button"
-                        onClick={() => {
-                            fecharStatusModulo();
-                            onAbrirEsquematico();
-                        }}
-                    >
-                        <CircuitBoard size={14} />
-                        Ver Esquematico Tatico
-                    </button>
+                {/* Editar Controlador + Diagnostico Completo (12-espc) + Esquematico Interativo
+                    (16-espc, so pro modulo de reles) — mesmo visual empilhado, ver
+                    ".status-modulo__acoes" em dashboard.css. */}
+                {moduloClicado && (
+                    <div className="status-modulo__acoes">
+                        <button
+                            className="botao-primario status-modulo__botao-acao"
+                            type="button"
+                            onClick={() => setModalEditarAberto(true)}
+                        >
+                            <Pencil size={14} />
+                            Editar Controlador
+                        </button>
+
+                        <button
+                            className="botao-primario status-modulo__botao-acao"
+                            type="button"
+                            onClick={() => setModalDiagnosticoAberto(true)}
+                            disabled={!statusModulo?.disponivel}
+                        >
+                            <Cpu size={14} />
+                            Diagnostico Completo
+                        </button>
+
+                        {moduloClicado?.tipo === 'atuador' && (
+                            <button
+                                className="botao-primario status-modulo__botao-acao"
+                                type="button"
+                                onClick={() => {
+                                    fecharStatusModulo();
+                                    onAbrirEsquematico();
+                                }}
+                            >
+                                <CircuitBoard size={14} />
+                                Ver Esquematico Tatico
+                            </button>
+                        )}
+                    </div>
                 )}
             </ModalInfo>
+
+            <ModalEditarModulo
+                aberto={modalEditarAberto}
+                modulo={moduloClicado}
+                statusAtual={statusModulo}
+                onFechar={() => setModalEditarAberto(false)}
+                onSalvo={onAtualizarModulo}
+                registrarLog={registrarLog}
+            />
+
+            <ModalDiagnosticoCompleto
+                aberto={modalDiagnosticoAberto}
+                modulo={moduloClicado}
+                diagnostico={statusModulo}
+                onFechar={() => setModalDiagnosticoAberto(false)}
+            />
         </>
     );
 }

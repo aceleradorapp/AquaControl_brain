@@ -697,13 +697,66 @@
     font-size: 0.8rem;
     text-align: right;
 }
-.status-modulo__botao-esquematico {
+/* 12-espc: generalizado de ".status-modulo__botao-esquematico" (so 1 botao) pra um
+   container com N botoes de acao empilhados (Editar/Diagnostico Completo/Esquematico) —
+   mesmo visual, so precisava de espacamento entre mais de um. */
+.status-modulo__acoes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    margin-top: var(--espaco-md);
+}
+.status-modulo__botao-acao {
     display: flex;
     align-items: center;
     gap: 6px;
     width: 100%;
     justify-content: center;
-    margin-top: var(--espaco-md);
+}
+
+/* --- Modal de Editar Controlador (12-espc) --- */
+.modal-editar-modulo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+}
+.modal-editar-modulo__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.modal-editar-modulo__campo .hud-input {
+    width: 100%;
+}
+.modal-editar-modulo__campo .hud-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+/* Especificidade de 2 classes (0,2,0) de proposito — precisa vencer ".hud-tag" (0,1,0) em
+   hud.css, que forca "white-space: nowrap" (o que causava a mensagem criar scroll
+   horizontal em vez de quebrar linha). */
+.modal-editar-modulo__campo .modal-editar-modulo__aviso {
+    display: block;
+    white-space: normal;
+    line-height: 1.4;
+}
+
+/* --- Modal de Diagnostico Completo (12-espc) --- */
+.diagnostico-completo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.diagnostico-completo__secao-titulo {
+    color: var(--cor-secundaria);
+    letter-spacing: 0.1em;
+    display: block;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--cor-borda-forte);
 }
 .gestao-esps__info {
     display: flex;

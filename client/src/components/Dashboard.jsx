@@ -14,8 +14,13 @@ import {
     Server,
     QrCode,
     Terminal,
+    WifiOff,
+    CloudOff,
+    ServerCrash,
+    MonitorOff,
 } from 'lucide-react';
 import HeaderTatico from './HeaderTatico';
+import AlertasConectividade from './AlertasConectividade';
 import PainelParametrosVitais from './PainelParametrosVitais';
 import GraficoTemperatura from './GraficoTemperatura';
 import PainelEquipamentos from './PainelEquipamentos';
@@ -37,6 +42,7 @@ import { gerarHistoricoMensal, gerarHistoricoTemperatura, gerarUmidadeInicial } 
 import '../styles/dashboard.css';
 import '../styles/agendamentos.css';
 import '../styles/widgets-layout.css';
+import '../styles/alertas.css';
 
 let proximoIdLog = 1;
 
@@ -139,6 +145,12 @@ export default function Dashboard() {
     const [carregandoModulos, setCarregandoModulos] = useState(true);
     const [erroModulos, setErroModulos] = useState(null);
     const [backendOnline, setBackendOnline] = useState(true);
+    // Central de Alertas de Conectividade (21-espc) — "internetOnline" reflete o
+    // navigator.onLine do proprio navegador (sinal nativo, sem bater numa URL externa pra
+    // testar de verdade — o bastante pra "perdeu a rede local", que e o que derruba tudo
+    // mais aqui: o Brain roda na mesma LAN). Ver alertasConectividade mais abaixo, que
+    // combina isso com backendOnline/modulos pra montar o banner laranja (AlertasConectividade.jsx).
+    const [internetOnline, setInternetOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
     const [latenciaMs, setLatenciaMs] = useState(null);
     // null = ainda não leu o estado real (ou não há módulo atuador acessível) -> "modo
     // demo", só mock local. Array de 16 posições = leitura real via GET /api/modulos/:id/reles.
@@ -263,6 +275,26 @@ export default function Dashboard() {
         return () => clearInterval(intervalo);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Internet do navegador (21-espc) — eventos nativos 'online'/'offline' da janela, sem
+    // polling: o proprio navegador dispara isso quando o adaptador de rede muda de estado.
+    useEffect(() => {
+        function aoFicarOnline() {
+            setInternetOnline(true);
+            registrarLog('Conexao com a internet restabelecida.', 'sucesso');
+        }
+        function aoFicarOffline() {
+            setInternetOnline(false);
+            registrarLog('Conexao com a internet perdida.', 'erro');
+        }
+
+        window.addEventListener('online', aoFicarOnline);
+        window.addEventListener('offline', aoFicarOffline);
+        return () => {
+            window.removeEventListener('online', aoFicarOnline);
+            window.removeEventListener('offline', aoFicarOffline);
+        };
+    }, [registrarLog]);
 
     // Modo Panico é um estado global do Brain (09-espc), não só local — porque o Display
     // pode acioná-lo/normalizá-lo também (toque na tela dele), e o dashboard precisa saber
@@ -432,6 +464,13 @@ export default function Dashboard() {
         } catch {
             registrarLog('Falha ao remover modulo.', 'erro');
         }
+    }
+
+    // Sincroniza a lista local depois do Modal de Editar Controlador salvar o nome (12-espc,
+    // PUT /api/modulos/:id já feito lá dentro) — evita esperar o próximo poll de 8s de
+    // buscarModulos pra refletir o nome novo na lista.
+    function atualizarModuloLocal(moduloAtualizado) {
+        setModulos((atual) => atual.map((m) => (m.id === moduloAtualizado.id ? moduloAtualizado : m)));
     }
 
     // Núcleo compartilhado de acionamento: manda um array de 16 posições de verdade via
@@ -962,9 +1001,11 @@ export default function Dashboard() {
                     modulos={modulos}
                     onCriar={criarModulo}
                     onRemover={removerModulo}
+                    onAtualizarModulo={atualizarModuloLocal}
                     carregando={carregandoModulos}
                     erro={erroModulos}
                     onAbrirEsquematico={() => setModalEsquematicoAberto(true)}
+                    registrarLog={registrarLog}
                 />
             ),
         },
@@ -981,6 +1022,43 @@ export default function Dashboard() {
         },
     };
 
+    // Central de Alertas de Conectividade (21-espc, ver AlertasConectividade.jsx) — lista
+    // priorizada, nunca redundante: se a internet caiu, é o ÚNICO alerta (não faz sentido
+    // dizer que o Brain/atuador/display estão inacessíveis quando a causa raiz já é essa);
+    // se a internet está OK mas o Brain não responde, só esse aparece (os dados de
+    // "modulos" já estariam obsoletos, então não dá pra confiar neles pra dizer se o
+    // atuador/display estão mesmo offline); só quando internet E backend estão OK é que os
+    // status reais de atuador/display (vindos de "modulos", atualizados de verdade) entram.
+    const alertasConectividade = [];
+    if (!internetOnline) {
+        alertasConectividade.push({
+            chave: 'internet',
+            icone: <WifiOff size={16} />,
+            mensagem: 'Sem conexao com a internet — verifique o roteador/provedor.',
+        });
+    } else if (!backendOnline) {
+        alertasConectividade.push({
+            chave: 'backend',
+            icone: <CloudOff size={16} />,
+            mensagem: 'Sem conexao com o AquaControl_Brain — servidor local inacessivel.',
+        });
+    } else {
+        if (moduloAtuador && !moduloAtuador.online) {
+            alertasConectividade.push({
+                chave: 'atuador',
+                icone: <ServerCrash size={16} />,
+                mensagem: `Modulo Atuador (${moduloAtuador.ip}) sem resposta — comando remoto dos reles indisponivel.`,
+            });
+        }
+        for (const disp of modulos.filter((m) => m.tipo === 'display' && !m.online)) {
+            alertasConectividade.push({
+                chave: `display-${disp.id}`,
+                icone: <MonitorOff size={16} />,
+                mensagem: `Display "${disp.nome}" (${disp.ip}) sem resposta.`,
+            });
+        }
+    }
+
     // Menu de Acoes (14-espc): acesso permanente a qualquer tela de configuracao, mesmo com
     // o widget correspondente escondido em Layout/Widgets. IMPORTANTE (ver
     // 01-espc-geral/14_menu_de_acoes.md): toda nova funcionalidade/modal de configuracao
@@ -993,8 +1071,13 @@ export default function Dashboard() {
         { chave: 'layout-widgets', rotulo: 'Layout / Widgets', icone: <LayoutGrid size={16} />, onClick: () => setModalWidgetsAberto(true) },
     ];
 
+    // Vinheta de fundo: Modo Panico (vermelho) tem prioridade absoluta — nunca mostra as
+    // duas ao mesmo tempo, uma emergência de verdade não deve competir visualmente com um
+    // aviso de conectividade.
+    const classeVinheta = modoPanico ? 'dashboard--panico' : alertasConectividade.length > 0 ? 'dashboard--alerta-conectividade' : '';
+
     return (
-        <div className={`dashboard hud-grid-bg ${modoPanico ? 'dashboard--panico' : ''}`}>
+        <div className={`dashboard hud-grid-bg ${classeVinheta}`}>
             <HeaderTatico
                 backendOnline={backendOnline}
                 latenciaMs={latenciaMs}
@@ -1008,6 +1091,8 @@ export default function Dashboard() {
                 modoCompacto={modoCompacto}
                 onAlternarModoCompacto={alternarModoCompacto}
             />
+
+            <AlertasConectividade alertas={alertasConectividade} />
 
             {/* Layout movivel + Modo Compacto (20-espc) — as 3 colunas viram droppables/
                 sortables do dnd-kit; qual widget mora em qual coluna/posicao vem de

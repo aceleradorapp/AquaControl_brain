@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import '../styles/modais.css';
@@ -7,6 +8,17 @@ import '../styles/modais.css';
 // no backdrop ou no X. Todo modal do dashboard (mapeamento de portas, widgets) usa este
 // componente por baixo, só muda o conteúdo (children). "largura" controla o max-width
 // (ver modais.css) — "media" pra formulários simples, "grande" pra grades de 16 linhas.
+//
+// Renderizado via createPortal direto no <body> (20.1-espc) — sem isso, um modal aberto de
+// dentro de um widget ficava PRESO no stacking context daquele widget: WidgetSlot.jsx
+// precisa de "position:relative + z-index" no card pra poder levantar ele por cima dos
+// outros durante o arrasto (ver widgets-layout.css), mas isso significa que um
+// "position:fixed" descendente (o backdrop deste modal) NÃO escapa desse contexto — ele so
+// escapa do FLUXO normal do documento, não do empilhamento. Na prática, o modal ficava
+// competindo em z-index só contra os outros widgets da MESMA coluna/contexto, e podia
+// aparecer atrás de widgets vizinhos dependendo da ordem deles. O portal resolve isso na
+// raiz: o modal passa a ser filho direto do <body>, fora de qualquer stacking context de
+// widget, então sempre fica por cima de tudo, não importa de onde foi aberto.
 export default function ModalHud({ aberto, titulo, tag, onFechar, children, largura = 'media' }) {
     useEffect(() => {
         if (!aberto) return undefined;
@@ -19,7 +31,7 @@ export default function ModalHud({ aberto, titulo, tag, onFechar, children, larg
         return () => document.removeEventListener('keydown', aoTeclar);
     }, [aberto, onFechar]);
 
-    return (
+    return createPortal(
         <AnimatePresence>
             {aberto && (
                 <motion.div
@@ -50,6 +62,7 @@ export default function ModalHud({ aberto, titulo, tag, onFechar, children, larg
                     </motion.div>
                 </motion.div>
             )}
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 }
