@@ -1,5 +1,6 @@
 const db = require('../database/db');
 const { aplicarRelesNoModulo } = require('../services/relesService');
+const { obterUltimaLeitura: obterUltimaLeituraSensores } = require('../services/sensoresTelemetriaService');
 
 // Camada de "acionamento ao vivo" (01-espc-geral/07_...): diferente de
 // portasMapeamentoController.js (que só guarda nomes/status no SQLite), este controller
@@ -111,6 +112,29 @@ async function consultarStatusEsp(req, res) {
     }
 }
 
+// GET /api/modulos/:id/sensores — usado pelo diagrama de sensores no modal de Diagnostico
+// Completo, pelo Esquematico dos Sensores e pelo widget/modal "Sensores no Display" (16-espc).
+// NAO faz mais fetch proprio no ESP (evita duplicar o polling que sensoresTelemetriaService.js
+// ja faz a cada 5s em background) — devolve o mesmo cache mesclado com nomes personalizados
+// (ver sensoresTelemetriaService.js:obterUltimaLeitura/aplicarNomesPersonalizados), no maximo
+// ~5s desatualizado, o que e mais que suficiente pra essas telas. Mesmo padrao "sempre 200,
+// disponivel:false em caso de falha" dos demais proxies acima.
+async function consultarSensoresEsp(req, res) {
+    const { id } = req.params;
+    const modulo = buscarModulo(id);
+
+    if (!modulo) {
+        return res.status(404).json({ erro: 'Modulo nao encontrado.' });
+    }
+
+    const leitura = obterUltimaLeituraSensores();
+    if (!leitura) {
+        return res.json({ disponivel: false, motivo: `Nao foi possivel falar com o modulo em ${modulo.ip} ainda.` });
+    }
+
+    res.json({ disponivel: true, ...leitura });
+}
+
 // POST /api/modulos/:id/config-dispositivo — proxy pro POST /api/config-dispositivo do
 // proprio ESP32 (12-espc, "Editar Controlador" no dashboard): body { hostname } (mesmo
 // formato que o firmware espera, repassado sem alteracao). O ESP salva na NVS e reinicia
@@ -144,4 +168,4 @@ async function configurarDispositivoEsp(req, res) {
     }
 }
 
-module.exports = { consultarReles, acionarReles, consultarStatusEsp, configurarDispositivoEsp };
+module.exports = { consultarReles, acionarReles, consultarStatusEsp, consultarSensoresEsp, configurarDispositivoEsp };

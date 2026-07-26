@@ -1,4 +1,4 @@
-import { Activity, CalendarClock, CircuitBoard, LayoutGrid, Maximize2, Menu, Minimize2, Siren, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
+import { Activity, CalendarClock, CircuitBoard, LayoutGrid, Maximize2, Menu, Minimize2, Scaling, Siren, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
 import { useRelogio } from '../hooks/useRelogio';
 
 function formatarHora(data) {
@@ -30,6 +30,12 @@ function formatarData(data) {
 // clicar (ver WidgetSlot.jsx) — o icone/estado do botao reflete qual modo esta ativo agora
 // (Maximize2 = "esta compacto, clique pra expandir todos"; Minimize2 = "esta normal,
 // clique pra compactar").
+//
+// Escala global dos widgets (20.2-espc, so monitores/tablets grandes — ver dashboard.css,
+// ".header-tatico__escala" fica escondido em telas de celular): o slider aplica um "zoom"
+// CSS em cima de TODA a grade de widgets (Dashboard.jsx), nao so um resize visual — encolhe/
+// aumenta fontes, paddings e gaps proporcionalmente. Persistido pelo Dashboard a cada
+// mudanca, ver alterarEscalaWidgets la.
 export default function HeaderTatico({
     backendOnline,
     latenciaMs,
@@ -42,6 +48,8 @@ export default function HeaderTatico({
     onNormalizar,
     modoCompacto,
     onAlternarModoCompacto,
+    escalaWidgets,
+    onAlterarEscalaWidgets,
 }) {
     const agora = useRelogio();
 
@@ -108,6 +116,21 @@ export default function HeaderTatico({
                 >
                     {modoCompacto ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
                 </button>
+
+                <div className="header-tatico__escala" title="Tamanho dos widgets">
+                    <Scaling size={14} />
+                    <input
+                        className="header-tatico__slider-escala"
+                        type="range"
+                        min="0.6"
+                        max="1.3"
+                        step="0.05"
+                        value={escalaWidgets}
+                        onChange={(evento) => onAlterarEscalaWidgets(Number(evento.target.value))}
+                        aria-label="Tamanho dos widgets"
+                    />
+                    <span className="hud-tag header-tatico__escala-valor">{Math.round(escalaWidgets * 100)}%</span>
+                </div>
 
                 <button className="botao-icone" onClick={onAbrirWidgets} type="button" title="Personalizar tela / widgets" aria-label="Personalizar tela / widgets">
                     <LayoutGrid size={16} />

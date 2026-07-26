@@ -6,12 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AquaControl_Brain is the central webservice for the AquaControl aquarium automation ecosystem —
 a Node.js/Express/SQLite backend (`server/`) + a React/Vite dashboard (`client/`). It's the
-intermediary between two sibling ESP32 firmware projects in the same `aquario/` folder:
+intermediary between three sibling ESP32 firmware projects in the same `aquario/` folder:
 `AquaControl_Hardware` (16-channel relay board, plain GPIO — see its own `01-espc-geral/11_*`/`12_*`
-specs) and `AquaControl_OS` (the CYD touchscreen Display). Neither ESP32 talks to the other
-directly anymore — the Brain polls Hardware for relay state and pushes it to the Display, proxies
-relay commands from the dashboard to Hardware, and handles the Display's QR code library and Modo
-Panico. See `01-espc-geral/09_display_webservice.md` for that architecture.
+specs), `AquaControl_sensor` (7 real sensors — DS18B20 water temp ×3, DHT11 air temp+humidity,
+YF-S201 flow, analog pH, SW-520D tilt — see `01-espc-geral/16_spec_AquaControl_sensor.md`), and
+`AquaControl_OS` (the CYD touchscreen Display). None of the ESP32s talk to each other directly —
+the Brain polls Hardware for relay state (proxied to the dashboard, no longer forwarded to the
+Display's main screen as of 16-espc), polls the Sensor module for real telemetry and pushes a
+user-selected subset (at most 6, chosen/ordered in the "Sensores no Display" widget) to the
+Display, and handles the Display's QR code library and Modo Panico. See
+`01-espc-geral/09_display_webservice.md` for the handshake/QR/Panico architecture and
+`01-espc-geral/16_widget_sensores_display.md` for the sensor telemetry pipeline (real-time push,
+smart diffing, and the `historico_sensores` table for future reports).
 
 **All work in this ecosystem is driven by numbered spec files in `../01-espc-geral/`** — read the
 relevant one before implementing a feature; they're the source of truth for contracts/behavior,

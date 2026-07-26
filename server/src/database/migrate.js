@@ -290,6 +290,60 @@ function runMigrations(db) {
             FOREIGN KEY (modulo_id) REFERENCES modulos (id) ON DELETE CASCADE
         );
     `);
+
+    // 16-espc: historico dos 7 sensores reais (AquaControl_sensor), pra relatorios futuros —
+    // uma linha por MUDANCA de valor (nao uma linha por ciclo de polling, ver
+    // sensoresTelemetriaService.js), senao a tabela cresceria rapido demais sem necessidade
+    // (o sensor e lido a cada poucos segundos). "valor" fica como TEXT (mesmo raciocinio do
+    // "valor" em Dispositivo.h no firmware) pra caber tanto numero quanto o texto amigavel de
+    // um sensor booleano (ex.: inclinacao); NULL quando o sensor estava desconectado no
+    // momento (nao inventa um valor pra um sensor que nao respondeu).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS historico_sensores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            modulo_id INTEGER NOT NULL,
+            sensor_id TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            nome TEXT NOT NULL,
+            valor TEXT,
+            unidade TEXT,
+            conectado INTEGER NOT NULL DEFAULT 1,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (modulo_id) REFERENCES modulos (id) ON DELETE CASCADE
+        );
+    `);
+
+    // 16-espc: quais sensores (no maximo 6, aplicado no controller) aparecem na tela
+    // principal do Display, e em que ordem/posicao (0-5, cada posicao vira um slot no grid
+    // do firmware) — configuravel no widget "Sensores no Display" do dashboard. Uma linha
+    // por sensor selecionado; UNIQUE(sensor_id) porque cada sensor so pode ocupar 1 posicao.
+    // Sem modulo_id de proposito — mesma simplificacao ja usada em config_display: so existe
+    // um modulo de telemetria e um Display no ecossistema por enquanto.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS config_display_sensores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sensor_id TEXT NOT NULL UNIQUE,
+            posicao INTEGER NOT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    // 16-espc (nomes personalizados): dois nomes por sensor, além do que o firmware manda por
+    // padrão — "nome_personalizado" é o nome geral (aparece em todo lugar no dashboard: widget,
+    // Diagrama de Sensores, Esquematico dos Sensores), "nome_display" é um nome DIFERENTE,
+    // usado SÓ no que é enviado pro Display de verdade (telemetriaDisplayService.js) — pensado
+    // pra caber melhor no card pequeno da tela física, sem precisar afetar o nome mostrado no
+    // site. Ambos NULL = usa o nome que vem de fábrica do firmware do sensor. Sem modulo_id de
+    // proposito, mesma simplificacao de config_display_sensores (só existe 1 módulo de
+    // telemetria por enquanto).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS sensores_personalizados (
+            sensor_id TEXT PRIMARY KEY,
+            nome_personalizado TEXT,
+            nome_display TEXT,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
 }
 
 module.exports = { runMigrations };

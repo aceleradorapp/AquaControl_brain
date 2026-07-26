@@ -33,6 +33,9 @@
 .esquematico__legenda-traco--bloqueado {
     background: var(--cor-laranja);
 }
+.esquematico__legenda-traco--desconectado {
+    background: var(--cor-erro);
+}
 
 .esquematico__svg-wrap {
     width: 100%;
@@ -169,6 +172,23 @@
 @keyframes esquematico-fluxo {
     to { stroke-dashoffset: -24; }
 }
+/* --- Esquematico dos Sensores (16-espc): fio/pino "desconectado" (sensor nao detectado),
+   vermelho em vez do laranja de "bloqueado" (conceito diferente — aqui e o hardware que nao
+   respondeu, nao uma porta desabilitada pelo usuario) --- */
+.esquematico__pino--decorativo {
+    cursor: default;
+}
+.esquematico__fio--desconectado {
+    stroke: var(--cor-erro);
+    opacity: 0.5;
+}
+.esquematico__fio--conectado {
+    stroke: var(--cor-primaria);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 3px var(--cor-primaria));
+    stroke-dasharray: 7 5;
+    animation: esquematico-fluxo 0.6s linear infinite;
+}
 
 /* --- Fio curto Modulo -> bloco do rele (coluna 2 -> 3), decorativo --- */
 .esquematico__fio-curto {
@@ -225,6 +245,40 @@
 }
 .esquematico__rele-status--bloqueado {
     fill: var(--cor-laranja);
+}
+
+/* --- Bloco de sensor (EsquematicoSensores.jsx): nome + status [valor ou DESCONECTADO] --- */
+.esquematico__sensor {
+    fill: var(--cor-fundo-elevado);
+    stroke: var(--cor-borda-forte);
+    stroke-width: 1.2;
+    transition: fill 0.2s ease, stroke 0.2s ease;
+}
+.esquematico__sensor--conectado {
+    fill: rgba(var(--cor-primaria-rgb), 0.14);
+    stroke: var(--cor-sucesso);
+    filter: drop-shadow(0 0 4px rgba(var(--cor-primaria-rgb), 0.5));
+}
+.esquematico__sensor--desconectado {
+    stroke: var(--cor-erro);
+    opacity: 0.6;
+}
+.esquematico__sensor-nome {
+    font-family: var(--fonte-mono);
+    font-size: 10px;
+    fill: var(--cor-texto);
+}
+.esquematico__sensor-status {
+    font-family: var(--fonte-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+.esquematico__sensor-status--conectado {
+    fill: var(--cor-sucesso);
+}
+.esquematico__sensor-status--desconectado {
+    fill: var(--cor-erro);
 }
 
 /* --- Tooltip HUD flutuante (posicionado via JS, position:fixed) --- */

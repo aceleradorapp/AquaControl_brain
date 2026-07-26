@@ -44,7 +44,17 @@ function formatarValorStatus(chave, valor) {
 // periódico em background no server — ver services/statusModulosService.js). O LED
 // reflete "online", não "ativo": verde pulsante quando o módulo responde, vermelho neon
 // quando não responde — "ativo" continua só como texto no título (tooltip) do LED.
-export default function ModulosControladores({ modulos, onCriar, onRemover, onAtualizarModulo, carregando, erro, onAbrirEsquematico, registrarLog }) {
+export default function ModulosControladores({
+    modulos,
+    onCriar,
+    onRemover,
+    onAtualizarModulo,
+    carregando,
+    erro,
+    onAbrirEsquematico,
+    onAbrirEsquematicoSensores,
+    registrarLog,
+}) {
     const [formAberto, setFormAberto] = useState(false);
     const [form, setForm] = useState({ nome: '', ip: '', tipo: TIPOS[0], ativo: true });
     const [enviando, setEnviando] = useState(false);
@@ -249,6 +259,20 @@ export default function ModulosControladores({ modulos, onCriar, onRemover, onAt
                             >
                                 <CircuitBoard size={14} />
                                 Ver Esquematico Tatico
+                            </button>
+                        )}
+
+                        {moduloClicado?.tipo === 'telemetria' && (
+                            <button
+                                className="botao-primario status-modulo__botao-acao"
+                                type="button"
+                                onClick={() => {
+                                    fecharStatusModulo();
+                                    onAbrirEsquematicoSensores();
+                                }}
+                            >
+                                <CircuitBoard size={14} />
+                                Ver Esquematico dos Sensores
                             </button>
                         )}
                     </div>

@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
+import { Cpu } from 'lucide-react';
 import ModalInfo from './ModalInfo';
+import { ICONES_SENSOR, formatarValorSensor } from '../utils/sensores';
 
 // Modal "Diagnostico Completo" (12-espc): TODOS os dados que o firmware do ESP32 sabe
 // sobre si mesmo (GET /api/status estendido, ver AquaControl_Hardware/AquaControl_OS —
@@ -57,6 +60,25 @@ function Linha({ rotulo, valor }) {
 }
 
 export default function ModalDiagnosticoCompleto({ aberto, modulo, diagnostico, onFechar }) {
+    // Diagrama de Sensores busca sua propria fonte (GET /api/modulos/:id/sensores, proxy pro
+    // GET /api/sensores do proprio ESP32) — dado que nao vem de "diagnostico" (esse e so o
+    // GET /api/status). So dispara pra modulos "telemetria" e só enquanto o modal estiver aberto.
+    const [sensores, setSensores] = useState(null);
+    const [carregandoSensores, setCarregandoSensores] = useState(false);
+
+    useEffect(() => {
+        if (!aberto || modulo?.tipo !== 'telemetria') {
+            setSensores(null);
+            return;
+        }
+        setCarregandoSensores(true);
+        fetch(`/api/modulos/${modulo.id}/sensores`)
+            .then((resposta) => resposta.json())
+            .then(setSensores)
+            .catch(() => setSensores({ disponivel: false, motivo: 'Falha ao consultar o AquaControl_Brain.' }))
+            .finally(() => setCarregandoSensores(false));
+    }, [aberto, modulo]);
+
     return (
         <ModalInfo
             aberto={aberto}
@@ -128,6 +150,42 @@ export default function ModalDiagnosticoCompleto({ aberto, modulo, diagnostico, 
                     {modulo?.tipo === 'display' && (
                         <Secao titulo="Especifico deste Modulo">
                             <Linha rotulo="Tela Atual" valor={NOMES_TELAS_DISPLAY[diagnostico.tela_atual] ?? `#${diagnostico.tela_atual}`} />
+                        </Secao>
+                    )}
+
+                    {modulo?.tipo === 'telemetria' && (
+                        <Secao titulo="Diagrama de Sensores">
+                            {carregandoSensores && <p className="hud-tag">Consultando sensores...</p>}
+
+                            {!carregandoSensores && sensores?.disponivel && (
+                                <div className="diagrama-sensores">
+                                    {sensores.sensores.map((sensor) => {
+                                        const Icone = ICONES_SENSOR[sensor.tipo] ?? Cpu;
+                                        return (
+                                            <div
+                                                key={sensor.id}
+                                                className={`diagrama-sensores__card ${sensor.conectado ? 'conectado' : 'desconectado'}`}
+                                            >
+                                                <div className="diagrama-sensores__cabecalho">
+                                                    <Icone size={16} />
+                                                    <span
+                                                        className={`hud-status-dot ${sensor.conectado ? 'online' : 'offline'}`}
+                                                        title={sensor.conectado ? 'Sensor conectado' : 'Sensor nao detectado'}
+                                                    />
+                                                </div>
+                                                <span className="diagrama-sensores__nome">{sensor.nome}</span>
+                                                <span className="diagrama-sensores__valor hud-mono">
+                                                    {sensor.conectado ? formatarValorSensor(sensor) : 'Desconectado'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {!carregandoSensores && sensores && !sensores.disponivel && (
+                                <p className="mensagem-erro hud-tag">{sensores.motivo ?? 'Nao foi possivel consultar os sensores.'}</p>
+                            )}
                         </Secao>
                     )}
                 </div>

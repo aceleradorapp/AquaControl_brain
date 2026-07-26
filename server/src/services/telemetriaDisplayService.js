@@ -1,99 +1,75 @@
-// 09-espc: o Display deixou de falar direto com o Hardware — agora o Brain e o
-// intermediario. Este servico roda em background (mesmo padrao de statusModulosService.js:
-// setInterval, cache-free, cada ciclo busca dados frescos) e faz duas coisas a cada
-// INTERVALO_MS: (1) busca o estado dos 16 reles no primeiro modulo "atuador" cadastrado,
-// (2) monta isso no formato "dispositivos" que o firmware do Display ja sabe interpretar
-// (DispositivoManager::atualizarDeJson, inalterado) e faz POST no primeiro modulo "display"
-// cadastrado.
+// 09-espc: o Display deixou de falar direto com o Hardware — o Brain e o intermediario.
+// 16-espc: a tela principal do Display virou 100% sensores reais (o grid de reles no
+// FOOTER foi removido no firmware) — este servico nao manda mais reles nem sensores
+// simulados; monta o payload a partir da leitura real do modulo de telemetria
+// (sensoresTelemetriaService.js), filtrada pela selecao de ate 6 sensores + posicao
+// escolhida no widget "Sensores no Display" (config_display_sensores).
+//
+// "Envio inteligente": so faz o POST pro Display quando o payload MUDA de verdade desde o
+// ultimo envio bem-sucedido (ultimoPayloadEnviadoJSON) — evita incomodar o Display a cada
+// ciclo so porque nada mudou. Se o envio falhar (Display inacessivel), o cache NAO e
+// atualizado, entao o proximo ciclo tenta de novo com o mesmo payload ate realmente
+// conseguir (nunca "desiste" silenciosamente de um dado que ainda nao chegou).
 const db = require('../database/db');
+const { obterUltimaLeitura } = require('./sensoresTelemetriaService');
 
 const INTERVALO_MS = 3000;
 const TIMEOUT_MS = 4000;
 
-// --- Simulacao TEMPORARIA de sensores de temperatura ---
-// O Hardware atual (pos reescrita do MCP23017, 07-espc) so produz reles — nao simula mais
-// temp_agua/temp_ambiente/temp_ph como o simulador antigo fazia. Isso deixava o grid de
-// sensores da tela principal do Display sempre vazio (o que parecia "travado" numa
-// primeira olhada, embora o Display estivesse funcionando certo, so sem dado nenhum pra
-// mostrar). Enquanto nao existir um sensor real, este gerador replica o mesmo
-// comportamento do simulador antigo (nudge aleatorio a cada ciclo de 3s, constrained a uma
-// faixa plausivel) so pra confirmar visualmente que a comunicacao Brain -> Display esta
-// viva. Remover este bloco (e a chamada de avancarSensoresSimulados/montarDispositivosSimulados
-// abaixo) quando sensores reais existirem no Hardware.
-const sensoresSimulados = {
-    temp_agua: 24.5,
-    temp_ambiente: 23.0,
-    temp_ph: 7.2,
-};
-
-function nudge(valor, deltaMax, min, max) {
-    const novo = valor + (Math.random() - 0.5) * 2 * deltaMax;
-    return Math.min(max, Math.max(min, novo));
-}
-
-function avancarSensoresSimulados() {
-    sensoresSimulados.temp_agua = nudge(sensoresSimulados.temp_agua, 2.0, 18, 32);
-    sensoresSimulados.temp_ambiente = nudge(sensoresSimulados.temp_ambiente, 2.0, 16, 34);
-    sensoresSimulados.temp_ph = nudge(sensoresSimulados.temp_ph, 0.3, 6.0, 8.5);
-}
-
-function montarDispositivosSimulados() {
-    return [
-        { id: 'temp_agua', tipo: 'sensor_temp', nome: 'Agua', valor: sensoresSimulados.temp_agua.toFixed(1) },
-        { id: 'temp_ambiente', tipo: 'sensor_temp', nome: 'Ambiente', valor: sensoresSimulados.temp_ambiente.toFixed(1) },
-        { id: 'temp_ph', tipo: 'sensor_temp', nome: 'PH', valor: sensoresSimulados.temp_ph.toFixed(1) },
-    ];
-}
+let ultimoPayloadEnviadoJSON = null;
 
 function buscarPrimeiroModulo(tipo) {
     return db.prepare('SELECT * FROM modulos WHERE tipo = ? ORDER BY id LIMIT 1').get(tipo);
 }
 
-// Le o estado real dos reles no ESP32 do atuador e traduz pro formato Dispositivo
-// (id/tipo/nome/valor) usando os nomes cadastrados em portas_mapeamento — portas nao
-// habilitadas ficam de fora (nao aparecem no grid do Display, mesma regra ja usada no
-// mapeamento). Retorna [] em qualquer falha (atuador inacessivel, resposta invalida etc.)
-// — o Display so mostra o que realmente conseguimos confirmar.
-//
-// IMPORTANTE: o corpo aqui e a resposta CRUA do ESP32 (`GET /api/reles` direto no
-// Hardware, nao atraves do proxy do Brain em relesController.js) — o ESP nunca manda um
-// campo "disponivel" (isso e so o formato que o Brain sintetiza pro browser). Checar
-// "dados.disponivel" aqui sempre falhava (fazia essa funcao retornar [] mesmo com o
-// Hardware respondendo 200 de verdade) — ficou mascarado enquanto o MCP23017 nao estava
-// wired e o ESP sempre respondia 503 de qualquer jeito (o "!resposta.ok" acima ja pegava
-// antes). Com os GPIOs diretos (11-espc) o Hardware passou a responder 200 sempre, e esse
-// bug teria zerado a telemetria de verdade — por isso so valida o formato do array agora.
-async function montarDispositivosDoAtuador(atuador) {
-    try {
-        const resposta = await fetch(`http://${atuador.ip}/api/reles`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-        if (!resposta.ok) return [];
-        const dados = await resposta.json();
-        if (!Array.isArray(dados.reles)) return [];
-
-        const portas = db.prepare('SELECT * FROM portas_mapeamento WHERE modulo_id = ?').all(atuador.id);
-        const portaPorIndice = new Map(portas.map((p) => [p.posicao_indice, p]));
-
-        return dados.reles
-            .map((valor, indice) => {
-                const porta = portaPorIndice.get(indice);
-                if (porta && !porta.habilitado) return null;
-
-                const numero = String(indice + 1).padStart(2, '0');
-                return {
-                    id: `rele_${numero}`,
-                    tipo: 'rele',
-                    nome: porta?.nome_personalizado || `Porta ${numero}`,
-                    valor: valor === 1 ? 'true' : 'false',
-                };
-            })
-            .filter(Boolean);
-    } catch {
-        return [];
+// Traduz o formato bruto do ESP (GET /api/sensores, ver AquaControl_sensor) pro formato
+// amigavel que o firmware do Display vai imprimir na tela — o Display so imprime texto, toda
+// a decisao de "como formatar" fica aqui do lado do servidor: sensor_inclinacao (unidade
+// "bool" no ESP) vira a palavra NORMAL/INCLINADO sem unidade nenhuma (o firmware so desenha
+// o circulo de grau quando unidade === "C"); os demais mantem a unidade do ESP (C/%/L/min/pH)
+// e formatam o numero com 1 casa decimal (0 casas pra "%", que ja chega inteiro do ESP).
+function formatarValorParaDisplay(sensor) {
+    if (sensor.unidade === 'bool') {
+        return { valor: sensor.valor ? 'INCLINADO' : 'NORMAL', unidade: '' };
     }
+    if (typeof sensor.valor === 'number') {
+        const casas = sensor.unidade === '%' ? 0 : 1;
+        return { valor: sensor.valor.toFixed(casas), unidade: sensor.unidade || '' };
+    }
+    return { valor: String(sensor.valor), unidade: sensor.unidade || '' };
+}
+
+// Monta a lista de "Dispositivo" (mesmo formato id/tipo/nome/valor + o novo campo "unidade",
+// ver AquaControl_OS/include/Dispositivo.h) a partir da ultima leitura real do modulo de
+// telemetria, filtrada pela selecao do usuario (config_display_sensores, no maximo 6,
+// ORDENADA por posicao — a ordem do array manda a ordem dos slots no grid do Display).
+// Sensores selecionados mas desconectados no momento simplesmente NAO aparecem (mesmo
+// principio ja usado pros reles: "um relé desligado não é desenhado", aqui "um sensor
+// desconectado não ocupa slot").
+function montarDispositivosDosSensores() {
+    const leitura = obterUltimaLeitura();
+    if (!leitura?.disponivel) return [];
+
+    const selecao = db.prepare('SELECT sensor_id FROM config_display_sensores ORDER BY posicao').all();
+    if (selecao.length === 0) return [];
+
+    const sensorPorId = new Map(leitura.sensores.map((s) => [s.id, s]));
+
+    return selecao
+        .map(({ sensor_id }) => sensorPorId.get(sensor_id))
+        .filter((sensor) => sensor && sensor.conectado)
+        .map((sensor) => {
+            const { valor, unidade } = formatarValorParaDisplay(sensor);
+            // "nomeDisplay" (16-espc), nao "nome" — esse e o nome PENSADO PRA CABER na tela
+            // fisica, pode ser diferente do nome geral mostrado no dashboard (ver
+            // sensoresTelemetriaService.js:aplicarNomesPersonalizados).
+            return { id: sensor.id, tipo: sensor.tipo, nome: sensor.nomeDisplay, valor, unidade };
+        });
 }
 
 // POST /api/dispositivos no Display — mesmo endpoint que o Hardware chamava direto antes
-// do 09-espc; so muda quem chama agora.
+// do 09-espc; so muda quem chama agora. Retorna true/false (sucesso) pro chamador decidir
+// se atualiza o cache de "ultimo enviado" (so em caso de sucesso — ver cicloTelemetria).
 async function enviarParaDisplay(display, dispositivos) {
     try {
         await fetch(`http://${display.ip}/api/dispositivos`, {
@@ -102,20 +78,26 @@ async function enviarParaDisplay(display, dispositivos) {
             body: JSON.stringify({ dispositivos }),
             signal: AbortSignal.timeout(TIMEOUT_MS),
         });
+        return true;
     } catch (erro) {
         console.warn(`[telemetria->display] Falha ao enviar dispositivos pro Display (${display.ip}): ${erro.message}`);
+        return false;
     }
 }
 
 async function cicloTelemetria() {
     const display = buscarPrimeiroModulo('display');
-    if (!display) return; // sem Display cadastrado, nao ha pra quem enviar
+    if (!display) {
+        ultimoPayloadEnviadoJSON = null; // sem Display cadastrado, reseta pra reenviar do zero se um for cadastrado depois
+        return;
+    }
 
-    avancarSensoresSimulados();
-    const atuador = buscarPrimeiroModulo('atuador');
-    const dispositivosReles = atuador ? await montarDispositivosDoAtuador(atuador) : [];
-    const dispositivos = [...montarDispositivosSimulados(), ...dispositivosReles];
-    await enviarParaDisplay(display, dispositivos);
+    const dispositivos = montarDispositivosDosSensores();
+    const payloadJSON = JSON.stringify(dispositivos);
+    if (payloadJSON === ultimoPayloadEnviadoJSON) return; // nada mudou desde o ultimo envio confirmado
+
+    const sucesso = await enviarParaDisplay(display, dispositivos);
+    if (sucesso) ultimoPayloadEnviadoJSON = payloadJSON;
 }
 
 function iniciarEnvioParaDisplay() {
@@ -126,11 +108,9 @@ function iniciarEnvioParaDisplay() {
 // Snapshot sob demanda do mesmo payload que o ciclo periodico acima empurra pro Display —
 // usado por GET /api/dispositivos-atuais (dispositivosController.js), que o Display chama
 // uma vez no boot (com timeout curto) pra pintar o HUD com dados reais desde a primeira
-// tela, em vez de esperar ate 3s pelo proximo ciclo automatico.
+// tela, em vez de esperar pelo proximo ciclo automatico.
 async function obterDispositivosAtuais() {
-    const atuador = buscarPrimeiroModulo('atuador');
-    const dispositivosReles = atuador ? await montarDispositivosDoAtuador(atuador) : [];
-    return [...montarDispositivosSimulados(), ...dispositivosReles];
+    return montarDispositivosDosSensores();
 }
 
 module.exports = { iniciarEnvioParaDisplay, obterDispositivosAtuais };

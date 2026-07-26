@@ -35,15 +35,21 @@ async function criarModulo(req, res) {
 
     // Ping imediato (08-espc): sem isso, o módulo apareceria "offline" por até 10s (o
     // intervalo do laço periódico) mesmo se já estiver ligado e acessível.
-    verificarModulo(novoModulo);
+    // AGUARDADO (16-espc): o ping abre e derruba (destroy(), que manda RST em vez de FIN) uma
+    // conexao TCP crua na porta 80 do proprio modulo — se isso ficasse em voo ao mesmo tempo
+    // que o handshake abaixo abre OUTRA conexao pro mesmo ESP32, o WebServer do Arduino (só
+    // atende um cliente por vez) reseta a segunda conexao (ECONNRESET). Esperar o ping
+    // terminar antes do handshake elimina essa corrida.
+    await verificarModulo(novoModulo);
 
-    // Handshake (07-espc): avisa o ESP32 de atuadores/display qual é o IP deste backend.
+    // Handshake (07-espc, 16-espc: também vale pra "telemetria"): avisa o ESP32 de
+    // atuadores/display/sensores qual é o IP deste backend.
     // AGORA AGUARDADO (antes era fogo-e-esquece) — o cadastro em si nunca falha por causa
     // disso (o módulo já foi salvo no banco acima de qualquer jeito), mas a resposta ao
     // client inclui o resultado real do handshake, em vez do usuário só descobrir depois
     // no modal de status que "ip_backend_salvo" nunca chegou a ser preenchido.
     let handshake = null;
-    if (novoModulo.tipo === 'atuador' || novoModulo.tipo === 'display') {
+    if (novoModulo.tipo === 'atuador' || novoModulo.tipo === 'display' || novoModulo.tipo === 'telemetria') {
         handshake = await realizarHandshake(novoModulo);
     }
 
@@ -74,13 +80,14 @@ async function atualizarModulo(req, res) {
 
     const moduloAtualizado = db.prepare('SELECT * FROM modulos WHERE id = ?').get(id);
 
-    // Reping imediato — o IP pode ter mudado nesta edição
-    verificarModulo(moduloAtualizado);
+    // Reping imediato — o IP pode ter mudado nesta edição. AGUARDADO pelo mesmo motivo do
+    // criarModulo acima (evita corrida de conexao TCP com o handshake logo abaixo).
+    await verificarModulo(moduloAtualizado);
 
     // Mesmo handshake do cadastro (agora aguardado — ver criarModulo acima) — dispara de
     // novo na edição também (o IP pode ter mudado, ou o tipo pode ter virado "atuador" agora).
     let handshake = null;
-    if (moduloAtualizado.tipo === 'atuador' || moduloAtualizado.tipo === 'display') {
+    if (moduloAtualizado.tipo === 'atuador' || moduloAtualizado.tipo === 'display' || moduloAtualizado.tipo === 'telemetria') {
         handshake = await realizarHandshake(moduloAtualizado);
     }
 

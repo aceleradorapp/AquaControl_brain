@@ -222,6 +222,166 @@
     box-shadow: var(--glow-cyan-sm);
 }
 
+/* --- Seletor de Esquematicos (16-espc) --- */
+.selecionar-esquematico__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--espaco-md);
+}
+.selecionar-esquematico__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: var(--espaco-md);
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda);
+    color: var(--cor-texto);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.selecionar-esquematico__card:hover {
+    border-color: var(--cor-primaria);
+    color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+.selecionar-esquematico__nome {
+    font-family: var(--fonte-titulo);
+    font-size: 0.85rem;
+    letter-spacing: 0.03em;
+    text-align: center;
+}
+
+/* --- Configurar Sensores do Display (16-espc) --- */
+.config-sensores-display {
+    display: flex;
+    gap: var(--espaco-lg);
+    flex-wrap: wrap;
+}
+.config-sensores-display__preview-coluna {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-xs);
+    flex: 0 0 320px;
+}
+.config-sensores-display__tela {
+    width: 320px;
+    height: 240px;
+    background: #000;
+    border: 3px solid var(--cor-borda-forte);
+    border-radius: 6px;
+    box-sizing: border-box;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.config-sensores-display__vazio {
+    font-family: var(--fonte-mono);
+    font-size: 0.72rem;
+    color: var(--cor-borda-forte);
+    text-align: center;
+    letter-spacing: 0.05em;
+}
+.config-sensores-display__grid {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+    height: 100%;
+}
+.config-sensores-display__slot {
+    border: 1px solid var(--cor-borda-forte);
+    border-radius: 3px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 8px;
+    overflow: hidden;
+    min-width: 0;
+}
+.config-sensores-display__slot-nome {
+    font-family: var(--fonte-mono);
+    font-size: 0.6rem;
+    color: var(--cor-texto);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.config-sensores-display__slot-valor {
+    font-family: var(--fonte-titulo);
+    font-size: 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.config-sensores-display__lista-coluna {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-xs);
+    flex: 1 1 300px;
+    min-width: 280px;
+}
+.config-sensores-display__lista {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.config-sensores-display__vazio-lista {
+    padding: var(--espaco-sm);
+    text-align: center;
+}
+.config-sensores-display__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-fundo-elevado);
+    transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+.config-sensores-display__item.selecionado {
+    border-color: var(--cor-sucesso);
+    background: rgba(var(--cor-primaria-rgb), 0.08);
+}
+.config-sensores-display__item.desabilitado {
+    opacity: 0.4;
+}
+.config-sensores-display__item-valor {
+    min-width: 56px;
+    text-align: right;
+    flex-shrink: 0;
+}
+.config-sensores-display__arrasta {
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    color: var(--cor-texto-secundario);
+    cursor: grab;
+    padding: 0;
+    touch-action: none;
+}
+.config-sensores-display__arrasta:active {
+    cursor: grabbing;
+}
+.config-sensores-display__campos {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+}
+.config-sensores-display__input {
+    width: 100%;
+    font-size: 0.72rem;
+    padding: 3px 6px;
+}
+
 /* --- Responsivo --- */
 @media (max-width: 600px) {
     .modal-hud {

@@ -54,7 +54,7 @@ async function realizarHandshake(modulo) {
         return { sucesso: true };
     } catch (erro) {
         const motivo = `Falha ao avisar o modulo "${modulo.nome}" (${modulo.ip}) sobre o IP do backend (${ipBrain}): ${erro.message}`;
-        console.warn(`[handshake] ${motivo}`);
+        console.warn(`[handshake] ${motivo}`, erro.cause || erro);
         return { sucesso: false, motivo };
     }
 }

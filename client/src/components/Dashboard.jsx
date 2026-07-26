@@ -14,6 +14,7 @@ import {
     Server,
     QrCode,
     Terminal,
+    Timer,
     WifiOff,
     CloudOff,
     ServerCrash,
@@ -34,6 +35,10 @@ import PainelTemas from './PainelTemas';
 import ModalCriarTema from './ModalCriarTema';
 import ModalMenuAcoes from './ModalMenuAcoes';
 import EsquematicoInterativo from './EsquematicoInterativo';
+import EsquematicoSensores from './EsquematicoSensores';
+import ModalSelecionarEsquematico from './ModalSelecionarEsquematico';
+import WidgetSensoresDisplay from './WidgetSensoresDisplay';
+import ModalConfigurarSensoresDisplay from './ModalConfigurarSensoresDisplay';
 import AgendamentosWidget from './AgendamentosWidget';
 import ModalAgendamento from './ModalAgendamento';
 import ModalTimer from './ModalTimer';
@@ -58,9 +63,21 @@ const CHAVE_LOCALSTORAGE_LAYOUT_LEGADO = 'aquacontrol_brain_layout_widgets'; // 
 const CHAVE_LOCALSTORAGE_LAYOUT_NORMAL = 'aquacontrol_brain_layout_widgets_normal';
 const CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO = 'aquacontrol_brain_layout_widgets_compacto';
 const CHAVE_LOCALSTORAGE_MODO_COMPACTO = 'aquacontrol_brain_modo_compacto';
+// Escala global dos widgets (20.2-espc, barra fixa + zoom — só monitores/tablets grandes,
+// ver dashboard.css: tudo isso fica dentro de "@media (min-width: 768px)", em celular o
+// valor salvo aqui simplesmente nunca é lido pelo CSS). Default 0.9 = 10% menor que o
+// tamanho original, pedido explicito do usuario.
+const CHAVE_LOCALSTORAGE_ESCALA_WIDGETS = 'aquacontrol_brain_escala_widgets';
+const ESCALA_WIDGETS_PADRAO = 0.9;
+
+function carregarEscalaWidgetsSalva() {
+    const salvo = Number(localStorage.getItem(CHAVE_LOCALSTORAGE_ESCALA_WIDGETS));
+    return Number.isFinite(salvo) && salvo > 0 ? salvo : ESCALA_WIDGETS_PADRAO;
+}
+
 const COLUNAS = ['coluna0', 'coluna1', 'coluna2'];
 const LAYOUT_PADRAO = {
-    coluna0: ['parametrosVitais', 'historicoTermico'],
+    coluna0: ['parametrosVitais', 'historicoTermico', 'sensoresDisplay'],
     coluna1: ['centralAquario', 'matrizReles', 'temas', 'agendamentos'],
     coluna2: ['modulosControladores', 'qrcodes', 'systemLog'],
 };
@@ -75,6 +92,7 @@ const VISIBILIDADE_PADRAO = {
     qrcodes: true,
     temas: true,
     agendamentos: true,
+    sensoresDisplay: true,
 };
 
 // Preserva a posição salva de cada widget (filtrando chaves que não existem mais) e insere,
@@ -195,6 +213,14 @@ export default function Dashboard() {
     const [layoutCompacto, setLayoutCompacto] = useState(() => carregarLayoutSalvo(CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO));
     const [modoCompacto, setModoCompacto] = useState(carregarModoCompactoSalvo);
     const [chaveArrastando, setChaveArrastando] = useState(null);
+    // Escala global dos widgets (20.2-espc) — só monitores/tablets grandes, ver
+    // dashboard.css. "alturaHeaderFixo" é medida ao vivo (ResizeObserver logo abaixo), não
+    // fixa, porque a altura real do header varia (os badges de status quebram linha em
+    // telas médias) — sem isso o conteúdo abaixo do header fixo ficaria escondido atrás
+    // dele ou com um vão grande demais dependendo da largura da tela.
+    const [escalaWidgets, setEscalaWidgets] = useState(carregarEscalaWidgetsSalva);
+    const [alturaHeaderFixo, setAlturaHeaderFixo] = useState(0);
+    const headerRef = useRef(null);
     // "layoutWidgets"/"setLayoutWidgets" apontam pro layout do modo ATUAL — toda a logica de
     // arrasto abaixo (aoArrastarSobre/aoFinalizarArrasto/encontrarColunaDoWidget) so conhece
     // esse par generico, sem precisar saber em qual modo esta; trocar de modo troca pra qual
@@ -213,6 +239,23 @@ export default function Dashboard() {
     // Esquematico Interativo (16-espc) — aberto pelo header, pelo Menu de Acoes, ou pelo
     // botao "Ver Esquematico Tatico" dentro do modal de status em ModulosControladores.jsx.
     const [modalEsquematicoAberto, setModalEsquematicoAberto] = useState(false);
+    // Esquematico dos Sensores (16-espc) — mesmo padrao do Esquematico Interativo acima, so
+    // que pro modulo de telemetria; "dadosSensores" e o resultado bruto de
+    // GET /api/modulos/:id/sensores (ver useEffect de polling mais abaixo).
+    const [modalEsquematicoSensoresAberto, setModalEsquematicoSensoresAberto] = useState(false);
+    const [dadosSensores, setDadosSensores] = useState(null);
+    // Seletor de Esquematicos (16-espc) — o botao do header/Menu de Acoes abre ESTE modal
+    // agora (antes ia direto pro Esquematico Interativo dos reles, o unico que existia); os
+    // botoes especificos de cada modulo em ModulosControladores.jsx continuam abrindo o
+    // esquematico certo direto, sem passar por aqui.
+    const [modalSelecionarEsquematicoAberto, setModalSelecionarEsquematicoAberto] = useState(false);
+
+    // Sensores no Display (16-espc): quais sensores (max 6) e em que ordem aparecem na tela
+    // principal do AquaControl_OS — configuravel no widget/modal proprios. "selecaoSensoresDisplay"
+    // e so a config (sensorId + posicao); os VALORES ao vivo vem de "dadosSensores" (ja
+    // buscado acima pro Esquematico dos Sensores) — o widget/modal combinam os dois.
+    const [selecaoSensoresDisplay, setSelecaoSensoresDisplay] = useState([]);
+    const [modalConfigurarSensoresAberto, setModalConfigurarSensoresAberto] = useState(false);
     // Modo Panico: gadget de emergencia no header (ver HeaderTatico) — desliga os 16 reles
     // de uma vez e retinta o tema inteiro de vermelho (ver ".dashboard--panico" em
     // theme.css), so trocando variaveis CSS, nenhum componente precisa saber que esta em
@@ -234,6 +277,9 @@ export default function Dashboard() {
     // explícito de "qual módulo é a Central do Aquário"; essa é a simplificação assumida
     // por enquanto (01-espc-geral/07_...).
     const moduloAtuador = modulos.find((m) => m.tipo === 'atuador') ?? null;
+    // Modulo de Telemetria (16-espc, AquaControl_sensor) — mesma simplificacao assumida do
+    // moduloAtuador acima (primeiro cadastrado do tipo).
+    const moduloSensor = modulos.find((m) => m.tipo === 'telemetria') ?? null;
 
     const registrarLog = useCallback((mensagem, nivel = 'info') => {
         setLogs((atual) => {
@@ -265,6 +311,16 @@ export default function Dashboard() {
         } finally {
             setCarregandoModulos(false);
         }
+    }, []);
+
+    // Selecao de Sensores no Display (16-espc) — busca uma vez no boot do dashboard; so muda
+    // de novo quando o proprio ModalConfigurarSensoresDisplay salva (ver onSalvo abaixo),
+    // nao precisa de polling (ninguem mais escreve nessa tabela).
+    useEffect(() => {
+        fetch('/api/config-display-sensores')
+            .then((resposta) => resposta.json())
+            .then(setSelecaoSensoresDisplay)
+            .catch(() => {});
     }, []);
 
     useEffect(() => {
@@ -363,6 +419,40 @@ export default function Dashboard() {
             clearInterval(intervalo);
         };
     }, [moduloAtuador?.id]);
+
+    // Consulta periodica dos 7 sensores reais (16-espc), via GET /api/modulos/:id/sensores —
+    // mesmo padrao do polling de estadoReles acima, so que pro modulo de telemetria. Sem
+    // modulo de telemetria cadastrado, nem tenta (dadosSensores = null). "forcarAtualizacaoSensores"
+    // e so um contador que nao serve pra mais nada alem de disparar o efeito de novo fora do
+    // intervalo normal de 5s — usado pelo ModalConfigurarSensoresDisplay logo apos salvar nomes
+    // personalizados, pra refletir na hora em todo lugar (widget, diagrama, esquematico) em vez
+    // de esperar ate 5s pelo proximo poll.
+    const [forcarAtualizacaoSensores, setForcarAtualizacaoSensores] = useState(0);
+    useEffect(() => {
+        if (!moduloSensor) {
+            setDadosSensores(null);
+            return undefined;
+        }
+
+        let cancelado = false;
+
+        async function atualizarSensores() {
+            try {
+                const resposta = await fetch(`/api/modulos/${moduloSensor.id}/sensores`);
+                const dados = await resposta.json();
+                if (!cancelado) setDadosSensores(dados);
+            } catch {
+                // silencioso — mesmo espirito do polling de estadoReles acima
+            }
+        }
+
+        atualizarSensores();
+        const intervalo = setInterval(atualizarSensores, 5000);
+        return () => {
+            cancelado = true;
+            clearInterval(intervalo);
+        };
+    }, [moduloSensor?.id, forcarAtualizacaoSensores]);
 
     // Busca o mapeamento das 16 portas (nomes + habilitado) só quando o módulo atuador de
     // verdade muda (troca de ESP) — dependência é "moduloAtuador?.id", não o objeto inteiro,
@@ -815,6 +905,32 @@ export default function Dashboard() {
         });
     }
 
+    // Escala global dos widgets (20.2-espc) — o slider no header chama isso a cada arraste;
+    // persiste a cada mudança (não só ao soltar), mesmo espírito de alternarModoCompacto.
+    function alterarEscalaWidgets(novaEscala) {
+        setEscalaWidgets(novaEscala);
+        localStorage.setItem(CHAVE_LOCALSTORAGE_ESCALA_WIDGETS, String(novaEscala));
+    }
+
+    // Mede a altura REAL do header fixo (ResizeObserver, não um valor fixo no CSS) — ela
+    // varia com a largura da tela (os badges de ".header-tatico__status" quebram linha em
+    // telas médias, ver dashboard.css) e com o banner de Alertas de Conectividade
+    // aparecendo/sumindo ao lado dele. O valor vira uma CSS custom property no container
+    // raiz (ver o "style" do "return" abaixo), consumida só dentro do
+    // "@media (min-width: 768px)" — em celular isso não faz nada (o header nem é fixo la).
+    useEffect(() => {
+        const elemento = headerRef.current;
+        if (!elemento) return undefined;
+
+        const observer = new ResizeObserver((entradas) => {
+            for (const entrada of entradas) {
+                setAlturaHeaderFixo(Math.ceil(entrada.contentRect.height));
+            }
+        });
+        observer.observe(elemento);
+        return () => observer.disconnect();
+    }, []);
+
     // Layout movivel (20-espc): sensores do dnd-kit — PointerSensor cobre mouse/touch/caneta
     // (Pointer Events), com uma distancia minima de ativacao pra nao confundir um toque/
     // clique normal na alca com o inicio de um arrasto.
@@ -905,8 +1021,19 @@ export default function Dashboard() {
             return diferenca !== 0 ? diferenca : a.nome.localeCompare(b.nome, 'pt-BR');
         });
 
-    const valorAguaAtual = dados24h.agua[dados24h.agua.length - 1].valor;
-    const valorAmbienteAtual = dados24h.ambiente[dados24h.ambiente.length - 1].valor;
+    // Parametros Vitais com dado REAL (16-espc) quando o modulo de telemetria tiver o sensor
+    // fisico correspondente conectado — cai pro mock (dados24h/umidadeAr simulado) sensor a
+    // sensor, nao tudo-ou-nada: hoje so o DHT11 (temp_ar/umidade_ar) esta ligado de verdade,
+    // os 3 DS18B20 (temp_agua) ainda nao, entao "AGUA" continua mock ate um deles conectar,
+    // enquanto "AMBIENTE"/"UMIDADE DO AR" ja usam leitura real.
+    const sensoresReais = dadosSensores?.disponivel ? dadosSensores.sensores : [];
+    const sensorAguaReal = sensoresReais.find((s) => s.id.startsWith('temp_agua') && s.conectado);
+    const sensorAmbienteReal = sensoresReais.find((s) => s.id === 'temp_ar' && s.conectado);
+    const sensorUmidadeReal = sensoresReais.find((s) => s.id === 'umidade_ar' && s.conectado);
+
+    const valorAguaAtual = sensorAguaReal ? sensorAguaReal.valor : dados24h.agua[dados24h.agua.length - 1].valor;
+    const valorAmbienteAtual = sensorAmbienteReal ? sensorAmbienteReal.valor : dados24h.ambiente[dados24h.ambiente.length - 1].valor;
+    const umidadeArExibida = sensorUmidadeReal ? sensorUmidadeReal.valor : umidadeAr;
 
     // Registro de Widgets (20-espc, layout movivel + Modo Compacto): CADA widget do
     // Dashboard descrito como dado (titulo/icone/resumo/render), nao mais JSX fixo — e o que
@@ -920,7 +1047,7 @@ export default function Dashboard() {
             titulo: 'Parametros Vitais',
             icone: <Gauge size={20} />,
             resumo: `${valorAguaAtual.toFixed(1)}°C · ${valorAmbienteAtual.toFixed(1)}°C`,
-            render: () => <PainelParametrosVitais valorAgua={valorAguaAtual} valorAmbiente={valorAmbienteAtual} umidadeAr={umidadeAr} />,
+            render: () => <PainelParametrosVitais valorAgua={valorAguaAtual} valorAmbiente={valorAmbienteAtual} umidadeAr={umidadeArExibida} />,
         },
         historicoTermico: {
             titulo: 'Historico Termico',
@@ -1005,6 +1132,7 @@ export default function Dashboard() {
                     carregando={carregandoModulos}
                     erro={erroModulos}
                     onAbrirEsquematico={() => setModalEsquematicoAberto(true)}
+                    onAbrirEsquematicoSensores={() => setModalEsquematicoSensoresAberto(true)}
                     registrarLog={registrarLog}
                 />
             ),
@@ -1013,6 +1141,18 @@ export default function Dashboard() {
             titulo: 'QR Codes',
             icone: <QrCode size={20} />,
             render: () => <PainelQrCodes />,
+        },
+        sensoresDisplay: {
+            titulo: 'Sensores no Display',
+            icone: <Thermometer size={20} />,
+            resumo: `${selecaoSensoresDisplay.length}/6 selecionado(s)`,
+            render: () => (
+                <WidgetSensoresDisplay
+                    selecao={selecaoSensoresDisplay}
+                    dadosSensores={dadosSensores}
+                    onAbrirConfiguracao={() => setModalConfigurarSensoresAberto(true)}
+                />
+            ),
         },
         systemLog: {
             titulo: 'System Log',
@@ -1067,9 +1207,36 @@ export default function Dashboard() {
         { chave: 'mapear-saidas', rotulo: 'Mapear Saidas', icone: <Settings size={16} />, onClick: () => setModalPortasAberto(true) },
         { chave: 'criar-tema', rotulo: 'Criar Tema', icone: <Sparkles size={16} />, onClick: abrirCriarTema },
         { chave: 'agendamentos', rotulo: 'Agendamentos', icone: <CalendarClock size={16} />, onClick: abrirNovoAgendamento },
-        { chave: 'esquematico', rotulo: 'Esquematico Interativo', icone: <CircuitBoard size={16} />, onClick: () => setModalEsquematicoAberto(true) },
+        { chave: 'novo-timer', rotulo: 'Novo Timer', icone: <Timer size={16} />, onClick: abrirNovoTimer },
+        { chave: 'esquematico', rotulo: 'Esquematicos', icone: <CircuitBoard size={16} />, onClick: () => setModalSelecionarEsquematicoAberto(true) },
+        { chave: 'sensores-display', rotulo: 'Sensores do Display', icone: <Thermometer size={16} />, onClick: () => setModalConfigurarSensoresAberto(true) },
         { chave: 'layout-widgets', rotulo: 'Layout / Widgets', icone: <LayoutGrid size={16} />, onClick: () => setModalWidgetsAberto(true) },
     ];
+
+    // Entradas do Seletor de Esquematicos (16-espc) — um item por MODULO cadastrado que tem
+    // um esquematico proprio, usando o "nome" REAL cadastrado em Modulos de Controladores
+    // (nao um rotulo generico por tipo). Cresce sozinho: uma nova linha "if (moduloX) push(...)"
+    // por tipo de modulo que ganhar seu proprio esquematico no futuro — nao precisa mexer no
+    // ModalSelecionarEsquematico em si.
+    const entradasEsquematicos = [];
+    if (moduloAtuador) {
+        entradasEsquematicos.push({
+            chave: 'atuador',
+            titulo: moduloAtuador.nome,
+            subtitulo: `${moduloAtuador.ip} — Reles`,
+            icone: <CircuitBoard size={28} />,
+            onAbrir: () => setModalEsquematicoAberto(true),
+        });
+    }
+    if (moduloSensor) {
+        entradasEsquematicos.push({
+            chave: 'telemetria',
+            titulo: moduloSensor.nome,
+            subtitulo: `${moduloSensor.ip} — Sensores`,
+            icone: <CircuitBoard size={28} />,
+            onAbrir: () => setModalEsquematicoSensoresAberto(true),
+        });
+    }
 
     // Vinheta de fundo: Modo Panico (vermelho) tem prioridade absoluta — nunca mostra as
     // duas ao mesmo tempo, uma emergência de verdade não deve competir visualmente com um
@@ -1077,20 +1244,30 @@ export default function Dashboard() {
     const classeVinheta = modoPanico ? 'dashboard--panico' : alertasConectividade.length > 0 ? 'dashboard--alerta-conectividade' : '';
 
     return (
-        <div className={`dashboard hud-grid-bg ${classeVinheta}`}>
-            <HeaderTatico
-                backendOnline={backendOnline}
-                latenciaMs={latenciaMs}
-                onAbrirWidgets={() => setModalWidgetsAberto(true)}
-                onAbrirMenu={() => setModalMenuAberto(true)}
-                onAbrirEsquematico={() => setModalEsquematicoAberto(true)}
-                onAbrirAgendamentos={abrirNovoAgendamento}
-                modoPanico={modoPanico}
-                onAtivarPanico={ativarModoPanico}
-                onNormalizar={normalizarSistema}
-                modoCompacto={modoCompacto}
-                onAlternarModoCompacto={alternarModoCompacto}
-            />
+        <div
+            className={`dashboard hud-grid-bg ${classeVinheta}`}
+            style={{ '--altura-header-fixo': `${alturaHeaderFixo}px`, '--escala-widgets': escalaWidgets }}
+        >
+            {/* Barra fixa no topo (20.2-espc, só tablets grandes/monitores — ver
+                dashboard.css) — o ref mede a altura de verdade pro conteudo abaixo saber
+                quanto respiro deixar (ver useEffect com ResizeObserver acima). */}
+            <div ref={headerRef} className="dashboard__header-fixo">
+                <HeaderTatico
+                    backendOnline={backendOnline}
+                    latenciaMs={latenciaMs}
+                    onAbrirWidgets={() => setModalWidgetsAberto(true)}
+                    onAbrirMenu={() => setModalMenuAberto(true)}
+                    onAbrirEsquematico={() => setModalSelecionarEsquematicoAberto(true)}
+                    onAbrirAgendamentos={abrirNovoAgendamento}
+                    modoPanico={modoPanico}
+                    onAtivarPanico={ativarModoPanico}
+                    onNormalizar={normalizarSistema}
+                    modoCompacto={modoCompacto}
+                    onAlternarModoCompacto={alternarModoCompacto}
+                    escalaWidgets={escalaWidgets}
+                    onAlterarEscalaWidgets={alterarEscalaWidgets}
+                />
+            </div>
 
             <AlertasConectividade alertas={alertasConectividade} />
 
@@ -1184,6 +1361,28 @@ export default function Dashboard() {
                 estadoReles={estadoReles}
                 portas={portasMapeamento}
                 onAlternarPorta={alternarPorta}
+            />
+
+            <EsquematicoSensores
+                aberto={modalEsquematicoSensoresAberto}
+                onFechar={() => setModalEsquematicoSensoresAberto(false)}
+                moduloSensor={moduloSensor}
+                dadosSensores={dadosSensores}
+            />
+
+            <ModalSelecionarEsquematico
+                aberto={modalSelecionarEsquematicoAberto}
+                onFechar={() => setModalSelecionarEsquematicoAberto(false)}
+                entradas={entradasEsquematicos}
+            />
+
+            <ModalConfigurarSensoresDisplay
+                aberto={modalConfigurarSensoresAberto}
+                onFechar={() => setModalConfigurarSensoresAberto(false)}
+                dadosSensores={dadosSensores}
+                selecaoAtual={selecaoSensoresDisplay}
+                onSalvo={setSelecaoSensoresDisplay}
+                onRenomeado={() => setForcarAtualizacaoSensores((v) => v + 1)}
             />
         </div>
     );
