@@ -1,0 +1,344 @@
+/* Central de Diagnostico e Esquematico Interativo em Tempo Real (23-espc) */
+
+/* "min-height: 65vh" removido (25-espc) — com ".modal-hud--cheia" agora tendo altura FIXA
+   (nao so max-height), esse piso arbitrario so atrapalhava: se o espaco de verdade disponivel
+   fosse menor que 65vh em telas mais baixas, ele forcava este bloco pra fora do corpo do
+   modal, disparando o scroll da PAGINA em vez do terminal. "height: 100%" sozinho ja basta
+   agora que o ancestral tem altura definida de verdade. */
+.central-diagnostico {
+    display: flex;
+    gap: var(--espaco-md);
+    height: 100%;
+    min-height: 0;
+}
+
+.central-diagnostico__diagrama {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    background: radial-gradient(ellipse at center, rgba(var(--cor-primaria-rgb), 0.04) 0%, transparent 70%);
+    border: 1px solid var(--cor-borda);
+    border-radius: 4px;
+}
+.diagrama-central__svg {
+    width: 100%;
+    height: 100%;
+    min-width: 700px;
+    min-height: 620px;
+    display: block;
+    font-family: var(--fonte-mono);
+}
+
+.central-diagnostico__lateral {
+    flex: 0 0 300px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+}
+
+.botao-diagnostico {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    background: linear-gradient(180deg, rgba(var(--cor-primaria-rgb), 0.18), rgba(var(--cor-primaria-rgb), 0.05));
+    border: 1px solid var(--cor-primaria);
+    color: var(--cor-primaria);
+    font-family: var(--fonte-titulo);
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: var(--glow-cyan-sm);
+    transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+.botao-diagnostico:hover:not(:disabled) {
+    box-shadow: var(--glow-cyan-md);
+    transform: translateY(-1px);
+}
+.botao-diagnostico:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    animation: diagnostico-pulso-botao 1.2s ease-in-out infinite;
+}
+@keyframes diagnostico-pulso-botao {
+    0%, 100% { box-shadow: var(--glow-cyan-sm); }
+    50% { box-shadow: var(--glow-cyan-md); }
+}
+
+.central-diagnostico__terminal {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    background: #000;
+    border: 1px solid var(--cor-borda-forte);
+    padding: var(--espaco-sm);
+    font-family: var(--fonte-mono);
+    font-size: 0.72rem;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.central-diagnostico__linha {
+    white-space: pre-wrap;
+    color: var(--cor-texto-secundario);
+}
+.central-diagnostico__linha.titulo {
+    color: var(--cor-primaria);
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.central-diagnostico__linha.check {
+    color: var(--cor-texto);
+}
+.central-diagnostico__linha.ok {
+    color: var(--cor-sucesso);
+}
+.central-diagnostico__linha.fail {
+    color: var(--cor-erro);
+    font-weight: 700;
+}
+.central-diagnostico__linha.alerta {
+    color: var(--cor-alerta);
+}
+
+/* Acoes Sugeridas (25-espc) — aparece so depois da varredura, quando algum modulo respondeu
+   mas nao tem o host do Brain salvo (NVS). Fica FORA do terminal (nao rola junto com o log),
+   sempre visivel abaixo dele enquanto houver pendencia. */
+.central-diagnostico__acoes-sugeridas {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--espaco-sm);
+    border: 1px solid var(--cor-alerta);
+    background: rgba(255, 202, 40, 0.06);
+}
+.central-diagnostico__acoes-titulo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--cor-alerta);
+}
+.central-diagnostico__botao-acao {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.68rem;
+    padding: 7px 10px;
+}
+
+/* --- Diagrama Central: aquario --- */
+.diagrama-central__vidro-externo {
+    fill: none;
+    stroke: var(--cor-borda-forte);
+    stroke-width: 1;
+    opacity: 0.4;
+}
+.diagrama-central__vidro {
+    fill: none;
+    stroke: var(--cor-borda-forte);
+    stroke-width: 2;
+}
+.diagrama-central__bolha {
+    fill: var(--cor-primaria);
+    opacity: 0.7;
+}
+.diagrama-central__leitura {
+    font-family: var(--fonte-mono);
+    font-size: 13px;
+    fill: var(--cor-texto);
+    font-weight: 700;
+}
+.diagrama-central__leitura.leitura-temp {
+    font-size: 16px;
+    fill: var(--cor-primaria);
+}
+.diagrama-central__leitura.leitura-ph,
+.diagrama-central__leitura.leitura-tilt {
+    font-size: 10px;
+    fill: var(--cor-texto-secundario);
+}
+.diagrama-central__leitura.alerta {
+    fill: var(--cor-erro);
+    animation: diagnostico-pisca 1s ease-in-out infinite;
+}
+@keyframes diagnostico-pisca {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* --- Trilhas (linhas do centro ate cada no) --- */
+.diagrama-central__trilha {
+    stroke: var(--cor-borda-forte);
+    stroke-width: 1.2;
+    opacity: 0.4;
+}
+.diagrama-central__trilha.ativa {
+    stroke: var(--cor-primaria);
+    stroke-width: 1.8;
+    opacity: 0.9;
+    stroke-dasharray: 6 4;
+    animation: esquematico-fluxo 0.7s linear infinite;
+    filter: drop-shadow(0 0 2px var(--cor-primaria));
+}
+.diagrama-central__trilha.alerta {
+    stroke: var(--cor-erro);
+    stroke-width: 1.8;
+    opacity: 0.9;
+}
+
+/* --- Nos (modulos/sensores/atuadores) --- */
+.diagrama-central__no-corpo {
+    fill: var(--cor-fundo-elevado);
+    stroke-width: 1.5;
+    transition: filter 0.2s ease;
+}
+.diagrama-central__no-halo {
+    fill: none;
+    stroke-width: 1;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.diagrama-central__no.conectado .diagrama-central__no-corpo {
+    filter: drop-shadow(0 0 5px currentColor);
+}
+.diagrama-central__no.conectado .diagrama-central__no-halo {
+    opacity: 0.5;
+}
+.diagrama-central__no.desconectado .diagrama-central__no-corpo {
+    opacity: 0.35;
+}
+.diagrama-central__no:hover .diagrama-central__no-corpo {
+    filter: drop-shadow(0 0 8px currentColor);
+}
+.diagrama-central__no-rotulo {
+    font-family: var(--fonte-mono);
+    font-size: 9px;
+    fill: var(--cor-texto);
+}
+.diagrama-central__no-subtitulo {
+    font-family: var(--fonte-mono);
+    font-size: 8px;
+    fill: var(--cor-texto-secundario);
+}
+.diagrama-central__no-marca {
+    font-family: var(--fonte-titulo);
+    font-size: 12px;
+    font-weight: 700;
+}
+.diagrama-central__no-marca.ok {
+    fill: var(--cor-sucesso);
+}
+.diagrama-central__no-marca.fail {
+    fill: var(--cor-erro);
+}
+.diagrama-central__no.scan-fail .diagrama-central__no-corpo {
+    stroke: var(--cor-erro);
+    filter: drop-shadow(0 0 8px var(--cor-erro));
+    animation: diagnostico-pisca 0.8s ease-in-out infinite;
+}
+.diagrama-central__no.scan-ok .diagrama-central__no-corpo {
+    stroke: var(--cor-sucesso);
+    filter: drop-shadow(0 0 8px var(--cor-sucesso));
+}
+.diagrama-central__no-varredura {
+    fill: none;
+    stroke: var(--cor-alerta);
+    stroke-width: 1.5;
+    opacity: 0.8;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: diagnostico-anel-pendente 0.9s ease-out infinite;
+}
+@keyframes diagnostico-anel-pendente {
+    0% { transform: scale(1); opacity: 0.9; }
+    100% { transform: scale(1.7); opacity: 0; }
+}
+
+/* --- Varredura de radar (rotaciona continuamente enquanto executando=true) --- */
+.diagrama-central__radar path {
+    fill: rgba(var(--cor-primaria-rgb), 0.12);
+}
+.diagrama-central__radar {
+    animation: diagnostico-radar-giro 2.2s linear infinite;
+    transform-origin: center;
+    transform-box: fill-box;
+}
+@keyframes diagnostico-radar-giro {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* --- Modal de Detalhe do Sensor --- */
+.detalhe-sensor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+}
+.detalhe-sensor__cabecalho {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-md);
+}
+.detalhe-sensor__icone-ok {
+    color: var(--cor-primaria);
+}
+.detalhe-sensor__icone-off {
+    color: var(--cor-texto-secundario);
+    opacity: 0.5;
+}
+.detalhe-sensor__valor-bloco {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.detalhe-sensor__valor {
+    font-family: var(--fonte-titulo);
+    font-size: 1.6rem;
+    color: var(--cor-texto);
+}
+.detalhe-sensor__secao {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: var(--espaco-sm);
+    border-top: 1px solid var(--cor-borda);
+}
+.detalhe-sensor__sparkline {
+    width: 100%;
+    height: 64px;
+}
+.detalhe-sensor__sem-dados {
+    display: block;
+}
+.detalhe-sensor__faixa {
+    font-family: var(--fonte-mono);
+    color: var(--cor-texto);
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+}
+.detalhe-sensor__faixa.fora {
+    color: var(--cor-erro);
+}
+.detalhe-sensor__aviso-faixa {
+    color: var(--cor-erro);
+    font-weight: 700;
+}
+.detalhe-sensor__nota {
+    display: block;
+    opacity: 0.7;
+}
+
+@media (max-width: 900px) {
+    .central-diagnostico {
+        flex-direction: column;
+    }
+    .central-diagnostico__lateral {
+        flex: 0 0 auto;
+    }
+}
