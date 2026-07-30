@@ -1,0 +1,334 @@
+/* Documentacao Tecnica Interativa (26-espc) — deliberadamente FORA do tema Sci-Fi/neon do
+   resto do dashboard: fundo branco, texto escuro, alto contraste ("Clean/Paper Style" pedido
+   na spec). Tudo aqui e escopado dentro de ".documentacao-paper" pra nao vazar pro resto do
+   app nem ser afetado pelas 6 variantes de tema (abissal/ambar/escuro/vivido/claro) — este
+   documento sempre parece o mesmo, e sempre pensado pra impressao. */
+
+.documentacao-paper {
+    background: #ffffff;
+    color: #1f2937;
+    font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+    padding: 8px 4px 24px;
+}
+
+.documentacao-paper__topo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--espaco-md);
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e5e7eb;
+}
+.documentacao-paper__topo-texto {
+    color: #4b5563;
+    font-size: 0.85rem;
+    max-width: 640px;
+    line-height: 1.5;
+    margin: 0;
+}
+.documentacao-paper__botao-pdf {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #111827;
+    color: #ffffff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+}
+.documentacao-paper__botao-pdf:hover {
+    background: #374151;
+}
+
+.documentacao-paper__corpo {
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+}
+
+/* Sumario fixo — "position: sticky" acompanha o scroll do MODAL (".modal-hud__corpo", que ja
+   e o container que rola), sem precisar de mais uma camada de scroll aninhada. */
+.documentacao-paper__sumario {
+    flex: 0 0 220px;
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 14px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+.documentacao-paper__sumario-titulo {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+.documentacao-paper__sumario-item {
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 7px 8px;
+    color: #374151;
+    font-size: 0.82rem;
+    cursor: pointer;
+    border-radius: 4px;
+    font-family: inherit;
+}
+.documentacao-paper__sumario-item:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+.documentacao-paper__sumario-item--sub {
+    padding-left: 22px;
+    font-size: 0.76rem;
+    color: #6b7280;
+}
+
+.documentacao-paper__conteudo {
+    flex: 1;
+    min-width: 0;
+}
+
+.documentacao-paper__secao {
+    margin-bottom: 44px;
+    scroll-margin-top: 12px;
+}
+.documentacao-paper__secao h1 {
+    font-size: 1.6rem;
+    margin: 0 0 14px;
+    color: #0f172a;
+}
+.documentacao-paper__secao h2 {
+    font-size: 1.25rem;
+    margin: 0 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #0891b2;
+    color: #0f172a;
+}
+.documentacao-paper__secao h3 {
+    font-size: 1.02rem;
+    margin: 22px 0 6px;
+    color: #111827;
+}
+.documentacao-paper__secao p {
+    line-height: 1.65;
+    margin: 0 0 12px;
+    color: #1f2937;
+    font-size: 0.92rem;
+}
+.documentacao-paper__secao ul,
+.documentacao-paper__secao ol {
+    line-height: 1.6;
+    margin: 0 0 12px;
+    padding-left: 22px;
+    font-size: 0.9rem;
+}
+.documentacao-paper__secao li {
+    margin-bottom: 6px;
+}
+.documentacao-paper__secao code {
+    background: #f3f4f6;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--fonte-mono);
+    font-size: 0.85em;
+    color: #b91c1c;
+}
+
+.documentacao-paper__tabela {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 22px;
+    font-size: 0.84rem;
+}
+.documentacao-paper__tabela th,
+.documentacao-paper__tabela td {
+    border: 1px solid #d1d5db;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+.documentacao-paper__tabela th {
+    background: #f3f4f6;
+    font-weight: 700;
+    color: #111827;
+}
+.documentacao-paper__tabela--compacta td {
+    border: none;
+    padding: 3px 12px 3px 0;
+}
+
+.documentacao-paper__arvore {
+    background: #0f172a;
+    color: #e5e7eb;
+    padding: 16px 18px;
+    border-radius: 6px;
+    font-family: var(--fonte-mono);
+    font-size: 0.76rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.documentacao-paper__passos {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0;
+}
+.documentacao-paper__passos li {
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    background: #f9fafb;
+    border-left: 4px solid #0891b2;
+    border-radius: 4px;
+}
+.documentacao-paper__passos li strong {
+    display: block;
+    color: #0f172a;
+    margin-bottom: 4px;
+    font-size: 0.92rem;
+}
+.documentacao-paper__passos li p {
+    margin: 0;
+    color: #374151;
+    font-size: 0.86rem;
+}
+
+.documentacao-paper__projeto {
+    margin-bottom: 26px;
+}
+.documentacao-paper__tipo-projeto {
+    font-style: italic;
+    color: #6b7280;
+    font-size: 0.83rem;
+    margin: 0 0 8px;
+}
+
+.documentacao-paper__modulo {
+    margin-top: 30px;
+    padding-top: 22px;
+    border-top: 1px dashed #d1d5db;
+}
+.documentacao-paper__apelido {
+    font-weight: 400;
+    font-size: 0.8em;
+    color: #6b7280;
+}
+.documentacao-paper__rotulo-observacoes {
+    font-weight: 700;
+    margin: 14px 0 4px;
+    color: #0f172a;
+    font-size: 0.9rem;
+}
+.documentacao-paper__caminho-codigo {
+    margin-top: 16px;
+    padding: 9px 14px;
+    background: #eff6ff;
+    border-radius: 4px;
+    font-size: 0.84rem;
+}
+
+/* --- Diagrama de pinagem (SVG, ver DiagramaPinagemESP32.jsx) --- */
+.diagrama-pinagem {
+    width: 100%;
+    max-width: 560px;
+    height: auto;
+    display: block;
+    margin: 18px auto;
+}
+.diagrama-pinagem__chip {
+    fill: #0f172a;
+    stroke: #0891b2;
+    stroke-width: 2;
+}
+.diagrama-pinagem__usb {
+    fill: #0891b2;
+}
+.diagrama-pinagem__nome-chip {
+    fill: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--fonte-mono);
+}
+.diagrama-pinagem__traco {
+    stroke: #9ca3af;
+    stroke-width: 1.5;
+}
+.diagrama-pinagem__pad {
+    fill: #0891b2;
+}
+.diagrama-pinagem__pino {
+    fill: #111827;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--fonte-mono);
+}
+.diagrama-pinagem__componente {
+    fill: #4b5563;
+    font-size: 10px;
+}
+
+/* ================================================================================
+   EXPORTAR EM PDF — window.print() + @media print (26-espc). MESMA tecnica ja usada
+   na Central de Relatorios (relatorios.css, 17-espc) — "esconde tudo, exceto o
+   conteudo que deve imprimir, que volta a ocupar a pagina inteira via
+   position:absolute" — em vez de tentar resetar a cadeia de ancestrais do modal
+   (".modal-hud"/".modal-hud__corpo" sao compartilhados por TODO modal do app;
+   mexer neles em @media print arriscaria efeito colateral em modais que nao tem
+   nada a ver com isso). Nenhuma lib nova (jspdf/html2pdf) — o navegador ja faz esse
+   trabalho nativamente.
+   ================================================================================ */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .documentacao-paper,
+    .documentacao-paper * {
+        visibility: visible;
+    }
+    .documentacao-paper {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding: 0;
+    }
+    .documentacao-paper__corpo {
+        display: block;
+    }
+    .documentacao-paper__sem-impressao {
+        display: none !important;
+    }
+
+    /* Cada secao principal comeca numa pagina nova (exceto a primeira) — pedido explicito
+       da spec ("quebras de pagina corretas nos titulos principais"). Blocos menores (um
+       modulo, um passo do onboarding) tentam nao partir ao meio. */
+    .documentacao-paper__secao + .documentacao-paper__secao {
+        break-before: page;
+    }
+    .documentacao-paper__modulo,
+    .documentacao-paper__projeto,
+    .documentacao-paper__passos li {
+        break-inside: avoid-page;
+    }
+
+    .documentacao-paper,
+    .documentacao-paper__arvore,
+    .documentacao-paper__tabela th,
+    .diagrama-pinagem__chip {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}
