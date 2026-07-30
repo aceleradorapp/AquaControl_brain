@@ -1,0 +1,264 @@
+/* Central de Relatorios e Analises (17-espc) */
+
+.central-relatorios {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+    height: 100%;
+}
+
+.central-relatorios__cabecalho {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--espaco-md);
+}
+.central-relatorios__periodo-custom {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+}
+.central-relatorios__periodo-custom .hud-input {
+    width: auto;
+}
+.central-relatorios__acoes {
+    display: flex;
+    gap: var(--espaco-sm);
+}
+.central-relatorios__botao-acao {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+/* --- Abas principais (Telemetria / Consumo / Automacao / Alertas) --- */
+.relatorio-abas {
+    display: flex;
+    gap: var(--espaco-xs);
+    border-bottom: 1px solid var(--cor-borda);
+    flex-wrap: wrap;
+}
+.relatorio-abas__item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--cor-texto-secundario);
+    font-family: var(--fonte-titulo);
+    font-size: 0.78rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+.relatorio-abas__item:hover {
+    color: var(--cor-texto);
+}
+.relatorio-abas__item--ativo {
+    color: var(--cor-primaria);
+    border-bottom-color: var(--cor-primaria);
+}
+
+.central-relatorios__conteudo {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.relatorio-aba {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+}
+
+.relatorio-subtitulo {
+    font-size: 0.85rem;
+    margin-bottom: var(--espaco-sm);
+}
+
+.relatorio-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--espaco-md);
+}
+
+/* --- Cartoes de KPI --- */
+.relatorio-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--espaco-sm);
+}
+.relatorio-kpis__legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--espaco-md);
+    margin-top: -4px;
+}
+.cartao-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--espaco-sm) var(--espaco-md);
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda);
+}
+.cartao-kpi__titulo {
+    letter-spacing: 0.05em;
+}
+.cartao-kpi__valor {
+    font-family: var(--fonte-titulo);
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+.cartao-kpi__unidade {
+    font-size: 0.9rem;
+    margin-left: 3px;
+    opacity: 0.8;
+}
+
+/* --- Tabelas --- */
+.relatorio-tabela {
+    max-height: 320px;
+    overflow: auto;
+}
+.relatorio-tabela table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+.relatorio-tabela th {
+    position: sticky;
+    top: 0;
+    background: var(--cor-fundo-elevado);
+    color: var(--cor-secundaria);
+    text-align: left;
+    padding: 6px 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    border-bottom: 1px solid var(--cor-borda-forte);
+}
+.relatorio-tabela td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--cor-borda);
+    white-space: nowrap;
+}
+.relatorio-status {
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 2px;
+}
+.relatorio-status.resolvido {
+    color: var(--cor-sucesso);
+}
+.relatorio-status.pendente {
+    color: var(--cor-erro);
+}
+
+/* --- Empty state --- */
+.estado-vazio-relatorio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--espaco-sm);
+    padding: var(--espaco-xl) var(--espaco-md);
+    color: var(--cor-texto-secundario);
+    text-align: center;
+}
+.estado-vazio-relatorio__titulo {
+    font-family: var(--fonte-titulo);
+    font-size: 1rem;
+    color: var(--cor-texto);
+}
+
+/* --- Timeline / Gantt de reles --- */
+.timeline-reles {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+.timeline-reles__eixo {
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--cor-borda);
+}
+.timeline-reles__linha {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+}
+.timeline-reles__rotulo {
+    flex: 0 0 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.timeline-reles__trilha {
+    position: relative;
+    flex: 1;
+    height: 20px;
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda);
+    border-radius: 2px;
+}
+.timeline-reles__barra {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    background: var(--cor-primaria);
+    border-radius: 2px;
+    box-shadow: 0 0 6px rgba(var(--cor-primaria-rgb), 0.6);
+}
+.timeline-reles__barra.em-andamento {
+    background: var(--cor-sucesso);
+    box-shadow: 0 0 6px rgba(0, 255, 127, 0.6);
+}
+
+/* --- Exportacao em PDF (impressao nativa do navegador) ---
+   Trick padrao "so imprime este elemento": esconde tudo, exceto o conteudo da aba ativa
+   (".relatorio-imprimivel"), que volta a ocupar a pagina inteira so no contexto de impressao. */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .relatorio-imprimivel,
+    .relatorio-imprimivel * {
+        visibility: visible;
+    }
+    .relatorio-imprimivel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        max-height: none;
+        overflow: visible;
+    }
+    .relatorio-tabela {
+        max-height: none;
+        overflow: visible;
+    }
+    .botao-icone,
+    .central-relatorios__acoes {
+        display: none !important;
+    }
+}
+
+@media (max-width: 700px) {
+    .central-relatorios__cabecalho {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .timeline-reles__rotulo {
+        flex-basis: 90px;
+        font-size: 0.65rem;
+    }
+}
