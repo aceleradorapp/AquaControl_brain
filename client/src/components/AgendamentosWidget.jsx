@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Pencil, Plus, ShieldCheck, Timer, Trash2, Zap } from 'lucide-react';
+import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, List, Pencil, Plus, ShieldCheck, Timer, Trash2, Zap } from 'lucide-react';
+import { formatarDias, formatarHorarios } from '../utils/formatoAgendamento';
 
 // Widget Tatico de Agendamentos (18-espc, 01-espc-geral/15_engine_agendamento_timers_e_overrides.md)
 // — a cara publica do Motor de Agendamento Inteligente (ver schedulerService.js no server).
@@ -10,15 +11,12 @@ import { AlertTriangle, CalendarClock, ChevronDown, ChevronUp, Pencil, Plus, Shi
 // Layout compacto em accordion (19-espc): por padrao so os cards de destaque (ativo
 // agora/proximo, ver acima) ficam visiveis — a lista "CADASTRADOS" vem recolhida, o usuario
 // expande clicando no cabecalho da secao (ver "cadastradosAberto" abaixo).
-const DIAS_UTEIS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX'];
-const TODOS_DIAS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'];
-
-function formatarDias(dias) {
-    if (dias.length === 7 && TODOS_DIAS.every((d) => dias.includes(d))) return 'Todos os dias';
-    if (dias.length === 5 && DIAS_UTEIS.every((d) => dias.includes(d))) return 'Dias uteis';
-    return dias.join(' ');
-}
-
+//
+// 24-espc: editar/excluir ja existiam aqui dentro (accordion "Cadastrados"), mas esse widget
+// pode ficar ESCONDIDO via Layout/Widgets — e o item "Agendamentos" no Menu de Acoes so abria
+// "Novo Agendamento" direto, sem lista nenhuma. Agora o botao de lista (icone List) abre
+// ModalListaAgendamentos.jsx, que tem a MESMA lista/acoes mas num modal sempre alcancavel,
+// independente do widget estar visivel ou nao — ver Dashboard.jsx.
 function formatarMinutos(minutos) {
     if (minutos < 60) return `${minutos}min`;
     const h = Math.floor(minutos / 60);
@@ -50,12 +48,6 @@ function formatarRestanteTimer(expiraEmIso) {
     return formatarMinutos(Math.max(0, Math.round(restanteMs / 60000)));
 }
 
-// 19-espc: um agendamento pode ter varios intervalos — mostra todos juntos, separados por
-// virgula (ex.: "08:00→12:00, 18:00→22:00").
-function formatarHorarios(horarios) {
-    return horarios.map((h) => `${h.horaInicio}→${h.horaFim}`).join(', ');
-}
-
 export default function AgendamentosWidget({
     moduloAtuador,
     agendamentos,
@@ -68,6 +60,7 @@ export default function AgendamentosWidget({
     onNovoTimer,
     onCancelarTimer,
     onRetomarAgendamento,
+    onAbrirLista,
 }) {
     const [cadastradosAberto, setCadastradosAberto] = useState(false);
 
@@ -80,6 +73,9 @@ export default function AgendamentosWidget({
             <div className="painel-cabecalho">
                 <h2 className="hud-titulo">Agendamentos</h2>
                 <div className="painel-cabecalho__acoes">
+                    <button className="botao-icone" onClick={onAbrirLista} aria-label="Ver todos os agendamentos" title="Ver todos / editar / excluir" type="button">
+                        <List size={16} />
+                    </button>
                     <button className="botao-icone" onClick={onNovoTimer} aria-label="Timer rapido" title="Timer rapido" type="button">
                         <Timer size={16} />
                     </button>

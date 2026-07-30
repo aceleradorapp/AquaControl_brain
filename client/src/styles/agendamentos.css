@@ -194,6 +194,27 @@
     text-overflow: ellipsis;
 }
 
+/* --- Modal de Lista de Agendamentos (24-espc) --- */
+.modal-lista-agendamentos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+}
+.modal-lista-agendamentos__botao-novo {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.modal-lista-agendamentos__lista {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
 /* --- Modal de Agendamento --- */
 .modal-agendamento {
     display: flex;
