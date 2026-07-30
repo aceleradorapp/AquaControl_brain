@@ -11,6 +11,19 @@ function formatarModulo(modulo) {
     return { ...modulo, ativo: !!modulo.ativo, online: estaOnline(modulo.id) };
 }
 
+// 25-espc: cadastro/edição de módulo NÃO validava formato de IP nem tipo, e não impedia
+// registrar o MESMO IP duas vezes — um erro de digitação (ou um IP já usado por outro
+// módulo) só era descoberto depois, quando o handshake falhava silenciosamente ou dois
+// módulos "brigavam" pelo mesmo endereço. Validado aqui pra pegar isso na hora do cadastro,
+// não depois.
+const TIPOS_VALIDOS = ['atuador', 'telemetria', 'display'];
+
+function ipValido(ip) {
+    const partes = String(ip).split('.');
+    if (partes.length !== 4) return false;
+    return partes.every((parte) => /^\d{1,3}$/.test(parte) && Number(parte) >= 0 && Number(parte) <= 255);
+}
+
 // GET /api/modulos — lista todos os módulos cadastrados
 function listarModulos(req, res) {
     const modulos = db.prepare('SELECT * FROM modulos ORDER BY id').all();
@@ -25,6 +38,16 @@ async function criarModulo(req, res) {
 
     if (!nome || !ip || !tipo) {
         return res.status(400).json({ erro: 'Os campos "nome", "ip" e "tipo" sao obrigatorios.' });
+    }
+    if (!ipValido(ip)) {
+        return res.status(400).json({ erro: `IP invalido: "${ip}". Use o formato 000.000.000.000.` });
+    }
+    if (!TIPOS_VALIDOS.includes(tipo)) {
+        return res.status(400).json({ erro: `Tipo invalido: "${tipo}". Use um de: ${TIPOS_VALIDOS.join(', ')}.` });
+    }
+    const jaExiste = db.prepare('SELECT nome FROM modulos WHERE ip = ?').get(ip);
+    if (jaExiste) {
+        return res.status(409).json({ erro: `Esse IP ja esta cadastrado no modulo "${jaExiste.nome}".` });
     }
 
     const resultado = db
@@ -69,6 +92,17 @@ async function atualizarModulo(req, res) {
     const ip = req.body.ip ?? moduloExistente.ip;
     const tipo = req.body.tipo ?? moduloExistente.tipo;
     const ativo = req.body.ativo ?? !!moduloExistente.ativo;
+
+    if (!ipValido(ip)) {
+        return res.status(400).json({ erro: `IP invalido: "${ip}". Use o formato 000.000.000.000.` });
+    }
+    if (!TIPOS_VALIDOS.includes(tipo)) {
+        return res.status(400).json({ erro: `Tipo invalido: "${tipo}". Use um de: ${TIPOS_VALIDOS.join(', ')}.` });
+    }
+    const jaExiste = db.prepare('SELECT nome FROM modulos WHERE ip = ? AND id != ?').get(ip, id);
+    if (jaExiste) {
+        return res.status(409).json({ erro: `Esse IP ja esta cadastrado no modulo "${jaExiste.nome}".` });
+    }
 
     db.prepare('UPDATE modulos SET nome = ?, ip = ?, tipo = ?, ativo = ? WHERE id = ?').run(
         nome,

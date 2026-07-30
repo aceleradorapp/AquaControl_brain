@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CircuitBoard, Cpu, Pencil, Plus, Server, Trash2 } from 'lucide-react';
 import ModalInfo from './ModalInfo';
 import ModalEditarModulo from './ModalEditarModulo';
 import ModalDiagnosticoCompleto from './ModalDiagnosticoCompleto';
+import IndicadorSinalWifi from './IndicadorSinalWifi';
+
+const INTERVALO_POLL_RSSI_MS = 15000;
 
 const TIPOS = ['atuador', 'telemetria', 'display'];
 
@@ -53,11 +56,50 @@ export default function ModulosControladores({
     erro,
     onAbrirEsquematico,
     onAbrirEsquematicoSensores,
+    onRenomeadoSensores,
     registrarLog,
 }) {
     const [formAberto, setFormAberto] = useState(false);
     const [form, setForm] = useState({ nome: '', ip: '', tipo: TIPOS[0], ativo: true });
     const [enviando, setEnviando] = useState(false);
+
+    // Sinal de Wi-Fi por modulo (25-espc) — "modulos" (prop, vindo do poll de 8s em
+    // Dashboard.jsx) so tem online/offline (cache leve de TCP ping), sem RSSI. Busca PROPRIA
+    // e mais espacada (15s, um GET /api/modulos/:id/status por modulo, mesma rota ja usada
+    // pelo modal de status ao clicar) so pra manter esse numero atualizado na lista, sem
+    // mexer no mecanismo de ping existente. Depende dos IDS (nao do array "modulos" em si,
+    // que e uma referencia nova a cada poll) — mesmo motivo documentado em Dashboard.jsx pra
+    // outros efeitos: evita re-disparar isso a cada 8s so por causa de uma referencia nova.
+    const [rssiPorModulo, setRssiPorModulo] = useState({});
+    const idsModulos = modulos.map((m) => m.id).join(',');
+
+    useEffect(() => {
+        if (!idsModulos) return undefined;
+        let cancelado = false;
+
+        async function atualizarRssi() {
+            const resultados = await Promise.all(
+                modulos.map(async (modulo) => {
+                    try {
+                        const resposta = await fetch(`/api/modulos/${modulo.id}/status`);
+                        const dados = await resposta.json();
+                        return [modulo.id, dados.disponivel ? dados.rssi_dbm ?? null : null];
+                    } catch {
+                        return [modulo.id, null];
+                    }
+                })
+            );
+            if (!cancelado) setRssiPorModulo(Object.fromEntries(resultados));
+        }
+
+        atualizarRssi();
+        const intervalo = setInterval(atualizarRssi, INTERVALO_POLL_RSSI_MS);
+        return () => {
+            cancelado = true;
+            clearInterval(intervalo);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [idsModulos]);
 
     // Modal de status ao vivo: clicar num módulo da lista chama GET /api/modulos/:id/status
     // (proxy pro GET /api/status do próprio ESP) e mostra o resultado — pensado pra validar
@@ -96,8 +138,19 @@ export default function ModulosControladores({
         if (!form.nome || !form.ip) return;
 
         setEnviando(true);
-        await onCriar(form);
+        const resultado = await onCriar(form);
         setEnviando(false);
+
+        // So limpa/fecha em caso de sucesso de verdade — antes fechava sempre, mesmo quando
+        // o cadastro falhava (ex.: IP duplicado/invalido), obrigando redigitar tudo. Em caso
+        // de falha o form fica aberto do jeito que estava; o motivo ja aparece no log.
+        if (resultado?.sucesso) {
+            setForm({ nome: '', ip: '', tipo: TIPOS[0], ativo: true });
+            setFormAberto(false);
+        }
+    }
+
+    function cancelarCadastro() {
         setForm({ nome: '', ip: '', tipo: TIPOS[0], ativo: true });
         setFormAberto(false);
     }
@@ -132,6 +185,8 @@ export default function ModulosControladores({
                             placeholder="IP (ex.: 192.168.98.210)"
                             value={form.ip}
                             onChange={(e) => setForm({ ...form, ip: e.target.value })}
+                            pattern="^(\d{1,3}\.){3}\d{1,3}$"
+                            title="Formato de IP invalido — use 000.000.000.000"
                         />
                         <select className="hud-input" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
                             {TIPOS.map((tipo) => (
@@ -146,9 +201,14 @@ export default function ModulosControladores({
                             <span>{form.ativo ? 'Ativo' : 'Inativo'}</span>
                         </label>
 
-                        <button className="botao-primario" type="submit" disabled={enviando}>
-                            {enviando ? 'Enviando...' : 'Cadastrar'}
-                        </button>
+                        <div className="gestao-esps__form-acoes">
+                            <button className="botao-primario" type="submit" disabled={enviando}>
+                                {enviando ? 'Enviando...' : 'Cadastrar'}
+                            </button>
+                            <button className="botao-primario botao-primario--neutro" type="button" onClick={cancelarCadastro} disabled={enviando}>
+                                Cancelar
+                            </button>
+                        </div>
                     </motion.form>
                 )}
             </AnimatePresence>
@@ -175,6 +235,7 @@ export default function ModulosControladores({
                                     {modulo.ip} — {modulo.tipo}
                                 </span>
                             </div>
+                            <IndicadorSinalWifi rssiDbm={rssiPorModulo[modulo.id]} />
                             <span
                                 className={`hud-status-dot ${modulo.online ? 'online' : 'offline'}`}
                                 title={`${modulo.online ? 'Online' : 'Offline'} — modulo ${modulo.ativo ? 'ativo' : 'inativo'}`}
@@ -285,6 +346,7 @@ export default function ModulosControladores({
                 statusAtual={statusModulo}
                 onFechar={() => setModalEditarAberto(false)}
                 onSalvo={onAtualizarModulo}
+                onRenomeadoSensores={onRenomeadoSensores}
                 registrarLog={registrarLog}
             />
 

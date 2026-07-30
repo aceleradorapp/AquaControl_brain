@@ -382,6 +382,29 @@
     transition: background 0.3s ease;
 }
 
+/* --- Vazao de agua (24-espc): mesma barra segmentada, escala fixa vermelho->verde + marcador
+   de troca de filtro --- */
+.barra-vazao__trilho {
+    position: relative;
+    margin-top: 2px;
+}
+.barra-vazao__inativa {
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
+    color: var(--cor-texto-secundario);
+    font-weight: normal;
+}
+.barra-vazao__marcador-filtro.hud-tooltip {
+    position: absolute;
+    top: -4px;
+    width: 2px;
+    height: 20px;
+    background: var(--cor-texto);
+    box-shadow: 0 0 4px var(--cor-texto);
+    transform: translateX(-1px);
+    cursor: help;
+}
+
 /* --- Equipamentos --- */
 .painel-equipamentos__abas {
     margin-bottom: var(--espaco-sm);
@@ -620,6 +643,25 @@
     margin-bottom: var(--espaco-sm);
 }
 
+.gestao-esps__form-acoes {
+    display: flex;
+    gap: var(--espaco-sm);
+}
+.gestao-esps__form-acoes .botao-primario {
+    flex: 1;
+}
+/* Cancelar (25-espc) — mesmo formato do botao-primario, cor neutra pra nao competir
+   visualmente com a acao principal ("Cadastrar"). */
+.botao-primario--neutro {
+    background: rgba(148, 163, 184, 0.08);
+    border-color: var(--cor-borda-forte);
+    color: var(--cor-texto-secundario);
+}
+.botao-primario--neutro:hover {
+    box-shadow: none;
+    border-color: var(--cor-texto-secundario);
+}
+
 .gestao-esps__chave {
     display: flex;
     align-items: center;
@@ -801,6 +843,49 @@
     line-height: 1.4;
 }
 
+/* Botao "Reenviar IP do Backend" (25-espc) — icone + texto lado a lado, alinhado a esquerda
+   (nao ocupa a largura toda como o "Salvar Alteracoes" no rodape do modal). */
+.modal-editar-modulo__botao-handshake {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+}
+
+/* --- Secao "Mapeamento e Nome dos Sensores do Modulo" (16-espc, so tipo "telemetria") --- */
+.modal-editar-modulo__secao-sensores {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    padding-top: var(--espaco-sm);
+    border-top: 1px solid var(--cor-borda);
+}
+.modal-editar-modulo__secao-titulo {
+    color: var(--cor-secundaria);
+    letter-spacing: 0.05em;
+}
+.modal-editar-modulo__secao-sensores .modal-editar-modulo__aviso {
+    display: block;
+    white-space: normal;
+    line-height: 1.4;
+}
+.modal-editar-modulo__campo-sensor {
+    flex-direction: row !important;
+    align-items: center;
+    gap: var(--espaco-sm) !important;
+}
+.modal-editar-modulo__campo-sensor .hud-input {
+    flex: 1;
+}
+.modal-editar-modulo__sensor-id {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 130px;
+    font-family: var(--fonte-mono);
+    white-space: nowrap;
+}
+
 /* --- Modal de Diagnostico Completo (12-espc) --- */
 .diagnostico-completo {
     display: flex;
@@ -875,6 +960,23 @@
 .gestao-esps__vazio {
     border: none !important;
     background: none !important;
+}
+
+/* Sinal de Wi-Fi estilo celular (25-espc) — fica no espaco vazio entre o nome/IP do modulo
+   (".gestao-esps__info", flex:1) e o ponto de status, ver ModulosControladores.jsx.
+   "margin-right" maior de proposito — separa visualmente do ponto verde/vermelho, que e um
+   indicador DIFERENTE (online/ativo) e nao deve parecer parte do mesmo grupo. */
+.indicador-sinal-wifi {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-right: 14px;
+}
+.indicador-sinal-wifi__valor {
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .mensagem-erro {

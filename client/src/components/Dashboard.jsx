@@ -15,10 +15,14 @@ import {
     QrCode,
     Terminal,
     Timer,
+    FileBarChart,
+    SlidersHorizontal,
+    Radar,
     WifiOff,
     CloudOff,
     ServerCrash,
     MonitorOff,
+    BookOpen,
 } from 'lucide-react';
 import HeaderTatico from './HeaderTatico';
 import AlertasConectividade from './AlertasConectividade';
@@ -39,8 +43,13 @@ import EsquematicoSensores from './EsquematicoSensores';
 import ModalSelecionarEsquematico from './ModalSelecionarEsquematico';
 import WidgetSensoresDisplay from './WidgetSensoresDisplay';
 import ModalConfigurarSensoresDisplay from './ModalConfigurarSensoresDisplay';
+import ModalCentralRelatorios from './ModalCentralRelatorios';
+import ModalConfiguracoes from './ModalConfiguracoes';
+import ModalCentralDiagnostico from './ModalCentralDiagnostico';
+import ModalDocumentacao from './ModalDocumentacao';
 import AgendamentosWidget from './AgendamentosWidget';
 import ModalAgendamento from './ModalAgendamento';
+import ModalListaAgendamentos from './ModalListaAgendamentos';
 import ModalTimer from './ModalTimer';
 import ColunaWidgets from './ColunaWidgets';
 import { gerarHistoricoMensal, gerarHistoricoTemperatura, gerarUmidadeInicial } from '../utils/mockData';
@@ -48,6 +57,9 @@ import '../styles/dashboard.css';
 import '../styles/agendamentos.css';
 import '../styles/widgets-layout.css';
 import '../styles/alertas.css';
+import '../styles/relatorios.css';
+import '../styles/configuracoes.css';
+import '../styles/diagnostico.css';
 
 let proximoIdLog = 1;
 
@@ -63,6 +75,11 @@ const CHAVE_LOCALSTORAGE_LAYOUT_LEGADO = 'aquacontrol_brain_layout_widgets'; // 
 const CHAVE_LOCALSTORAGE_LAYOUT_NORMAL = 'aquacontrol_brain_layout_widgets_normal';
 const CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO = 'aquacontrol_brain_layout_widgets_compacto';
 const CHAVE_LOCALSTORAGE_MODO_COMPACTO = 'aquacontrol_brain_modo_compacto';
+// Tema visual (22-espc) — mesma logica de persistencia client-only de modoCompacto/
+// escalaWidgets acima (preferencia de navegador, nao faz sentido no backend). "ciano" e o
+// tema padrao/original e nao precisa de nenhuma classe CSS propria (e o que ja esta em :root).
+const CHAVE_LOCALSTORAGE_TEMA = 'aquacontrol_brain_tema';
+const TEMA_PADRAO = 'ciano';
 // Escala global dos widgets (20.2-espc, barra fixa + zoom — só monitores/tablets grandes,
 // ver dashboard.css: tudo isso fica dentro de "@media (min-width: 768px)", em celular o
 // valor salvo aqui simplesmente nunca é lido pelo CSS). Default 0.9 = 10% menor que o
@@ -144,6 +161,10 @@ function carregarModoCompactoSalvo() {
     return localStorage.getItem(CHAVE_LOCALSTORAGE_MODO_COMPACTO) === 'true';
 }
 
+function carregarTemaSalvo() {
+    return localStorage.getItem(CHAVE_LOCALSTORAGE_TEMA) || TEMA_PADRAO;
+}
+
 function carregarVisibilidadeSalva() {
     try {
         const salvo = localStorage.getItem(CHAVE_LOCALSTORAGE_WIDGETS);
@@ -199,6 +220,9 @@ export default function Dashboard() {
     const [estadoAgendamentos, setEstadoAgendamentos] = useState(null);
     const [modalAgendamentoAberto, setModalAgendamentoAberto] = useState(false);
     const [agendamentoEditando, setAgendamentoEditando] = useState(null);
+    // 24-espc: lista sempre alcancavel (Menu de Acoes + botao no widget) pra ver/editar/excluir
+    // agendamentos ja cadastrados — ver ModalListaAgendamentos.jsx.
+    const [modalListaAgendamentosAberto, setModalListaAgendamentosAberto] = useState(false);
     const [modalTimerAberto, setModalTimerAberto] = useState(false);
     const [umidadeAr, setUmidadeAr] = useState(gerarUmidadeInicial);
     const [logs, setLogs] = useState([]);
@@ -212,6 +236,9 @@ export default function Dashboard() {
     const [layoutNormal, setLayoutNormal] = useState(() => carregarLayoutSalvo(CHAVE_LOCALSTORAGE_LAYOUT_NORMAL));
     const [layoutCompacto, setLayoutCompacto] = useState(() => carregarLayoutSalvo(CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO));
     const [modoCompacto, setModoCompacto] = useState(carregarModoCompactoSalvo);
+    // Tema visual (22-espc) — "ciano" (padrao) nao precisa de classe; "abissal"/"ambar" viram
+    // ".dashboard--tema-abissal"/".dashboard--tema-ambar" no container raiz (ver theme.css).
+    const [tema, setTemaState] = useState(carregarTemaSalvo);
     const [chaveArrastando, setChaveArrastando] = useState(null);
     // Escala global dos widgets (20.2-espc) — só monitores/tablets grandes, ver
     // dashboard.css. "alturaHeaderFixo" é medida ao vivo (ResizeObserver logo abaixo), não
@@ -256,6 +283,96 @@ export default function Dashboard() {
     // buscado acima pro Esquematico dos Sensores) — o widget/modal combinam os dois.
     const [selecaoSensoresDisplay, setSelecaoSensoresDisplay] = useState([]);
     const [modalConfigurarSensoresAberto, setModalConfigurarSensoresAberto] = useState(false);
+
+    // Central de Relatorios e Analises (17-espc) — modal full-screen proprio, sem estado
+    // nenhum vindo de fora (busca os 4 relatorios sozinho quando abre, ver
+    // ModalCentralRelatorios.jsx); Dashboard.jsx so guarda se esta aberto ou nao.
+    const [modalRelatoriosAberto, setModalRelatoriosAberto] = useState(false);
+
+    // Configuracoes Globais do Sistema (19-espc) — Dashboard.jsx mantem sua PROPRIA copia das
+    // preferencias de notificacao (nao a do rascunho local do ModalConfiguracoes), pra poder
+    // decidir "toca o bipe de alerta ou nao" no exato momento em que o Modo Panico e acionado,
+    // mesmo que a tela de Configuracoes nunca tenha sido aberta nesta sessao.
+    const [modalConfiguracoesAberto, setModalConfiguracoesAberto] = useState(false);
+    const [configNotificacoes, setConfigNotificacoes] = useState(null);
+
+    // Calibracao de Vazao (24-espc, tabela calibracao_fluxo) — mesma copia-propria-do-Dashboard
+    // que configNotificacoes acima, pelo mesmo motivo: o widget Parametros Vitais precisa dela
+    // sempre visivel, nao so quando o modal de Configuracoes estiver aberto. Estado inicial ja
+    // com os defaults do backend (bomba de 2000 L/h) pra barra nao "sumir"/piscar enquanto o
+    // primeiro fetch nao volta.
+    const [calibracaoFluxo, setCalibracaoFluxo] = useState({ vazaoMaximaLh: 2000, vazaoMinimaLh: 200, vazaoTrocaFiltroLh: 800 });
+
+    const recarregarCalibracaoFluxo = useCallback(() => {
+        fetch('/api/configuracoes/calibracao-fluxo')
+            .then((resposta) => resposta.json())
+            .then(setCalibracaoFluxo)
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        recarregarCalibracaoFluxo();
+    }, [recarregarCalibracaoFluxo]);
+
+    // Central de Diagnostico e Esquematico Interativo (23-espc) — modal full-screen proprio,
+    // so guarda se esta aberto; toda a orquestracao de clique (abrir Esquematico Interativo,
+    // Esquematico dos Sensores, Configurar Sensores do Display, Mapeamento de Portas) usa os
+    // MESMOS setters ja existentes abaixo, nao duplica nenhum desses modais.
+    const [modalDiagnosticoCentralAberto, setModalDiagnosticoCentralAberto] = useState(false);
+
+    // Documentacao Tecnica Interativa (26-espc) — pagina de referencia estatica (onboarding,
+    // estrutura de pastas, pinagem dos ESP32), sem estado nenhum vindo de fora.
+    const [modalDocumentacaoAberto, setModalDocumentacaoAberto] = useState(false);
+
+    const recarregarConfigNotificacoes = useCallback(() => {
+        fetch('/api/configuracoes')
+            .then((resposta) => resposta.json())
+            .then(setConfigNotificacoes)
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        recarregarConfigNotificacoes();
+    }, [recarregarConfigNotificacoes]);
+
+    // Horario de silencio (19-espc) — janela HH:MM-HH:MM em que o bipe de alerta nao toca;
+    // suporta atravessar a meia-noite (ex.: 22:00 -> 07:00).
+    function estaDentroDoSilencio(inicio, fim) {
+        if (!inicio || !fim) return false;
+        const agora = new Date();
+        const minutosAgora = agora.getHours() * 60 + agora.getMinutes();
+        const [horaInicio, minutoInicio] = inicio.split(':').map(Number);
+        const [horaFim, minutoFim] = fim.split(':').map(Number);
+        const minutosInicio = horaInicio * 60 + minutoInicio;
+        const minutosFim = horaFim * 60 + minutoFim;
+        if (minutosInicio <= minutosFim) return minutosAgora >= minutosInicio && minutosAgora < minutosFim;
+        return minutosAgora >= minutosInicio || minutosAgora < minutosFim;
+    }
+
+    // Bipe sintetizado via Web Audio API (sem arquivo de audio nenhum) — so toca se "Som no
+    // Navegador" estiver ativado E o horario atual nao estiver dentro do Horario de Silencio
+    // configurados em Configuracoes Globais -> Sistema & Plataforma -> Notificacoes.
+    function tocarBipeAlerta() {
+        if (configNotificacoes?.som_alertas_ativado !== 'true') return;
+        if (estaDentroDoSilencio(configNotificacoes?.silencio_inicio, configNotificacoes?.silencio_fim)) return;
+
+        try {
+            const Contexto = window.AudioContext || window.webkitAudioContext;
+            const contexto = new Contexto();
+            const oscilador = contexto.createOscillator();
+            const ganho = contexto.createGain();
+            oscilador.type = 'square';
+            oscilador.frequency.value = 880;
+            ganho.gain.setValueAtTime(0.2, contexto.currentTime);
+            ganho.gain.exponentialRampToValueAtTime(0.001, contexto.currentTime + 0.5);
+            oscilador.connect(ganho);
+            ganho.connect(contexto.destination);
+            oscilador.start();
+            oscilador.stop(contexto.currentTime + 0.5);
+        } catch {
+            // navegador sem suporte a Web Audio, ou autoplay bloqueado — silencioso
+        }
+    }
     // Modo Panico: gadget de emergencia no header (ver HeaderTatico) — desliga os 16 reles
     // de uma vez e retinta o tema inteiro de vermelho (ver ".dashboard--panico" em
     // theme.css), so trocando variaveis CSS, nenhum componente precisa saber que esta em
@@ -528,6 +645,12 @@ export default function Dashboard() {
         };
     }, [moduloAtuador?.id]);
 
+    // 25-espc: devolve { sucesso, erro } pro form (ModulosControladores.jsx) saber se pode
+    // limpar/fechar — antes disso o form sempre fechava e esquecia o que foi digitado, MESMO
+    // quando o cadastro falhava (ex.: IP duplicado, agora validado no server), forcando
+    // redigitar tudo de novo sem nem saber direito o motivo. Tambem confere "handshake" (o
+    // Brain ja tenta avisar o ESP do proprio IP na hora do cadastro) — sem isso o log dizia
+    // "sucesso" mesmo quando o modulo nao respondeu de verdade (ip errado, offline etc.).
     async function criarModulo(dadosForm) {
         try {
             const resposta = await fetch('/api/modulos', {
@@ -535,12 +658,22 @@ export default function Dashboard() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(dadosForm),
             });
-            if (!resposta.ok) throw new Error();
-            const novoModulo = await resposta.json();
-            setModulos((atual) => [...atual, novoModulo]);
-            registrarLog(`Modulo cadastrado: ${novoModulo.nome} (${novoModulo.ip})`, 'sucesso');
+            const dados = await resposta.json();
+            if (!resposta.ok) {
+                registrarLog(dados.erro ?? 'Falha ao cadastrar modulo.', 'erro');
+                return { sucesso: false, erro: dados.erro };
+            }
+
+            setModulos((atual) => [...atual, dados]);
+            if (dados.handshake && !dados.handshake.sucesso) {
+                registrarLog(`Modulo "${dados.nome}" cadastrado, mas nao respondeu agora: ${dados.handshake.motivo ?? 'sem detalhes.'}`, 'alerta');
+            } else {
+                registrarLog(`Modulo cadastrado: ${dados.nome} (${dados.ip})`, 'sucesso');
+            }
+            return { sucesso: true };
         } catch {
             registrarLog('Falha ao cadastrar modulo.', 'erro');
+            return { sucesso: false };
         }
     }
 
@@ -863,6 +996,7 @@ export default function Dashboard() {
     async function ativarModoPanico() {
         setModoPanico(true);
         registrarLog('MODO PANICO ACIONADO — desligando todos os equipamentos.', 'erro');
+        tocarBipeAlerta();
         fetch('/api/panico', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -910,6 +1044,13 @@ export default function Dashboard() {
     function alterarEscalaWidgets(novaEscala) {
         setEscalaWidgets(novaEscala);
         localStorage.setItem(CHAVE_LOCALSTORAGE_ESCALA_WIDGETS, String(novaEscala));
+    }
+
+    // Tema visual (22-espc) — mesmo espirito de alterarEscalaWidgets acima, so troca a classe
+    // aplicada no container raiz (ver o "className" do "return" mais abaixo).
+    function alterarTema(novoTema) {
+        setTemaState(novoTema);
+        localStorage.setItem(CHAVE_LOCALSTORAGE_TEMA, novoTema);
     }
 
     // Mede a altura REAL do header fixo (ResizeObserver, não um valor fixo no CSS) — ela
@@ -1035,6 +1176,34 @@ export default function Dashboard() {
     const valorAmbienteAtual = sensorAmbienteReal ? sensorAmbienteReal.valor : dados24h.ambiente[dados24h.ambiente.length - 1].valor;
     const umidadeArExibida = sensorUmidadeReal ? sensorUmidadeReal.valor : umidadeAr;
 
+    // Vazao de agua (24-espc) — "ativa" so quando o fluxometro esta CONECTADO e reportando
+    // fluxo>0 (bomba ligada de verdade agora, nao so sensor presente). Quando para (bomba
+    // desligada/manutencao), a leitura crua do ESP vira 0 — em vez de mostrar "0 L/h", guarda a
+    // ULTIMA leitura ativa conhecida (nesta sessao do dashboard) e mostra "INATIVA" ao lado dela,
+    // igual ao que o usuario pediu. Sensor reporta em L/min; a barra mostra em L/h (x60), mesma
+    // unidade da calibracao em Configuracoes Globais.
+    const sensorFluxoReal = sensoresReais.find((s) => s.id === 'fluxo_agua');
+    const vazaoAtivaAgora = !!(sensorFluxoReal?.conectado && Number(sensorFluxoReal.valor) > 0);
+    const vazaoAtualLMin = sensorFluxoReal?.conectado ? Number(sensorFluxoReal.valor) : null;
+
+    const [ultimaVazaoAtivaLMin, setUltimaVazaoAtivaLMin] = useState(null);
+    useEffect(() => {
+        if (vazaoAtivaAgora && vazaoAtualLMin !== null && !Number.isNaN(vazaoAtualLMin)) {
+            setUltimaVazaoAtivaLMin(vazaoAtualLMin);
+        }
+    }, [vazaoAtivaAgora, vazaoAtualLMin]);
+
+    const vazaoLMinExibida = vazaoAtivaAgora ? vazaoAtualLMin : ultimaVazaoAtivaLMin;
+    const vazaoExibida = sensorFluxoReal
+        ? {
+              valorLh: vazaoLMinExibida !== null ? vazaoLMinExibida * 60 : null,
+              ativa: vazaoAtivaAgora,
+              min: calibracaoFluxo.vazaoMinimaLh,
+              max: calibracaoFluxo.vazaoMaximaLh,
+              trocaFiltroLh: calibracaoFluxo.vazaoTrocaFiltroLh,
+          }
+        : null;
+
     // Registro de Widgets (20-espc, layout movivel + Modo Compacto): CADA widget do
     // Dashboard descrito como dado (titulo/icone/resumo/render), nao mais JSX fixo — e o que
     // permite ColunaWidgets.jsx/WidgetSlot.jsx desenharem qualquer um deles de forma
@@ -1047,7 +1216,9 @@ export default function Dashboard() {
             titulo: 'Parametros Vitais',
             icone: <Gauge size={20} />,
             resumo: `${valorAguaAtual.toFixed(1)}°C · ${valorAmbienteAtual.toFixed(1)}°C`,
-            render: () => <PainelParametrosVitais valorAgua={valorAguaAtual} valorAmbiente={valorAmbienteAtual} umidadeAr={umidadeArExibida} />,
+            render: () => (
+                <PainelParametrosVitais valorAgua={valorAguaAtual} valorAmbiente={valorAmbienteAtual} umidadeAr={umidadeArExibida} vazao={vazaoExibida} />
+            ),
         },
         historicoTermico: {
             titulo: 'Historico Termico',
@@ -1116,6 +1287,7 @@ export default function Dashboard() {
                     onNovoTimer={abrirNovoTimer}
                     onCancelarTimer={cancelarTimer}
                     onRetomarAgendamento={retomarAgendamento}
+                    onAbrirLista={() => setModalListaAgendamentosAberto(true)}
                 />
             ),
         },
@@ -1133,6 +1305,7 @@ export default function Dashboard() {
                     erro={erroModulos}
                     onAbrirEsquematico={() => setModalEsquematicoAberto(true)}
                     onAbrirEsquematicoSensores={() => setModalEsquematicoSensoresAberto(true)}
+                    onRenomeadoSensores={() => setForcarAtualizacaoSensores((v) => v + 1)}
                     registrarLog={registrarLog}
                 />
             ),
@@ -1206,11 +1379,15 @@ export default function Dashboard() {
     const itensMenu = [
         { chave: 'mapear-saidas', rotulo: 'Mapear Saidas', icone: <Settings size={16} />, onClick: () => setModalPortasAberto(true) },
         { chave: 'criar-tema', rotulo: 'Criar Tema', icone: <Sparkles size={16} />, onClick: abrirCriarTema },
-        { chave: 'agendamentos', rotulo: 'Agendamentos', icone: <CalendarClock size={16} />, onClick: abrirNovoAgendamento },
+        { chave: 'agendamentos', rotulo: 'Agendamentos', icone: <CalendarClock size={16} />, onClick: () => setModalListaAgendamentosAberto(true) },
         { chave: 'novo-timer', rotulo: 'Novo Timer', icone: <Timer size={16} />, onClick: abrirNovoTimer },
         { chave: 'esquematico', rotulo: 'Esquematicos', icone: <CircuitBoard size={16} />, onClick: () => setModalSelecionarEsquematicoAberto(true) },
         { chave: 'sensores-display', rotulo: 'Sensores do Display', icone: <Thermometer size={16} />, onClick: () => setModalConfigurarSensoresAberto(true) },
+        { chave: 'relatorios', rotulo: 'Central de Relatorios', icone: <FileBarChart size={16} />, onClick: () => setModalRelatoriosAberto(true) },
+        { chave: 'configuracoes', rotulo: 'Configuracoes Globais', icone: <SlidersHorizontal size={16} />, onClick: () => setModalConfiguracoesAberto(true) },
+        { chave: 'diagnostico-central', rotulo: 'Central de Diagnostico', icone: <Radar size={16} />, onClick: () => setModalDiagnosticoCentralAberto(true) },
         { chave: 'layout-widgets', rotulo: 'Layout / Widgets', icone: <LayoutGrid size={16} />, onClick: () => setModalWidgetsAberto(true) },
+        { chave: 'documentacao', rotulo: 'Documentacao', icone: <BookOpen size={16} />, onClick: () => setModalDocumentacaoAberto(true) },
     ];
 
     // Entradas do Seletor de Esquematicos (16-espc) — um item por MODULO cadastrado que tem
@@ -1242,10 +1419,28 @@ export default function Dashboard() {
     // duas ao mesmo tempo, uma emergência de verdade não deve competir visualmente com um
     // aviso de conectividade.
     const classeVinheta = modoPanico ? 'dashboard--panico' : alertasConectividade.length > 0 ? 'dashboard--alerta-conectividade' : '';
+    // "ciano" (tema padrao) nao tem classe propria — so as variaveis de :root em theme.css.
+    const classeTema = tema !== TEMA_PADRAO ? `dashboard--tema-${tema}` : '';
+
+    // Tema/Modo Panico precisam ir no <body>, NAO só na div ".dashboard" (22-espc, bug real
+    // encontrado apos o pedido do usuario "quando mudar o tema a janela de Configuracoes
+    // deveria mudar tambem"): todo modal do dashboard (ModalHud.jsx) usa createPortal direto
+    // pra document.body, o que tira o modal de dentro da arvore DOM da div ".dashboard" — as
+    // variaveis CSS sobrescritas so na classe da div nunca chegavam la (variavel CSS so
+    // cascateia por ancestralidade REAL no DOM, nao pela arvore de componentes React), entao
+    // qualquer modal aberto sempre mostrava o tema/panico padrao por baixo, nao importa o que
+    // estivesse selecionado. Espelhando a classe no <body> (um ancestral de verdade de
+    // QUALQUER coisa portada) resolve pros dois lados de uma vez.
+    useEffect(() => {
+        const classes = [classeTema, classeVinheta].filter(Boolean);
+        if (classes.length === 0) return undefined;
+        document.body.classList.add(...classes);
+        return () => document.body.classList.remove(...classes);
+    }, [classeTema, classeVinheta]);
 
     return (
         <div
-            className={`dashboard hud-grid-bg ${classeVinheta}`}
+            className="dashboard hud-grid-bg"
             style={{ '--altura-header-fixo': `${alturaHeaderFixo}px`, '--escala-widgets': escalaWidgets }}
         >
             {/* Barra fixa no topo (20.2-espc, só tablets grandes/monitores — ver
@@ -1344,6 +1539,17 @@ export default function Dashboard() {
                 registrarLog={registrarLog}
             />
 
+            <ModalListaAgendamentos
+                aberto={modalListaAgendamentosAberto}
+                moduloAtuador={moduloAtuador}
+                agendamentos={agendamentos}
+                onFechar={() => setModalListaAgendamentosAberto(false)}
+                onNovoAgendamento={abrirNovoAgendamento}
+                onEditarAgendamento={abrirEdicaoAgendamento}
+                onExcluirAgendamento={excluirAgendamento}
+                onAlternarAtivo={alternarAtivoAgendamento}
+            />
+
             <ModalTimer
                 aberto={modalTimerAberto}
                 modulo={moduloAtuador}
@@ -1384,6 +1590,43 @@ export default function Dashboard() {
                 onSalvo={setSelecaoSensoresDisplay}
                 onRenomeado={() => setForcarAtualizacaoSensores((v) => v + 1)}
             />
+
+            <ModalCentralRelatorios aberto={modalRelatoriosAberto} onFechar={() => setModalRelatoriosAberto(false)} />
+
+            <ModalConfiguracoes
+                aberto={modalConfiguracoesAberto}
+                onFechar={() => {
+                    setModalConfiguracoesAberto(false);
+                    recarregarConfigNotificacoes();
+                    recarregarCalibracaoFluxo();
+                }}
+                modulos={modulos}
+                dadosSensores={dadosSensores}
+                modoCompacto={modoCompacto}
+                onAlternarModoCompacto={alternarModoCompacto}
+                escalaWidgets={escalaWidgets}
+                onAlterarEscalaWidgets={alterarEscalaWidgets}
+                tema={tema}
+                onAlterarTema={alterarTema}
+                registrarLog={registrarLog}
+            />
+
+            <ModalCentralDiagnostico
+                aberto={modalDiagnosticoCentralAberto}
+                onFechar={() => setModalDiagnosticoCentralAberto(false)}
+                modulos={modulos}
+                dadosSensores={dadosSensores}
+                portasMapeamento={portasMapeamento}
+                estadoReles={estadoReles}
+                onAbrirEsquematicoReles={() => setModalEsquematicoAberto(true)}
+                onAbrirEsquematicoSensores={() => setModalEsquematicoSensoresAberto(true)}
+                onAbrirConfigurarSensoresDisplay={() => setModalConfigurarSensoresAberto(true)}
+                onAbrirMapeamentoPortas={() => setModalPortasAberto(true)}
+                onAtualizarModulo={atualizarModuloLocal}
+                registrarLog={registrarLog}
+            />
+
+            <ModalDocumentacao aberto={modalDocumentacaoAberto} onFechar={() => setModalDocumentacaoAberto(false)} />
         </div>
     );
 }

@@ -25,12 +25,16 @@ function buscarPrimeiroModulo(tipo) {
 // Traduz o formato bruto do ESP (GET /api/sensores, ver AquaControl_sensor) pro formato
 // amigavel que o firmware do Display vai imprimir na tela — o Display so imprime texto, toda
 // a decisao de "como formatar" fica aqui do lado do servidor: sensor_inclinacao (unidade
-// "bool" no ESP) vira a palavra NORMAL/INCLINADO sem unidade nenhuma (o firmware so desenha
+// "bool" no ESP) vira a palavra NORMAL/NIVEL BAIXO sem unidade nenhuma (o firmware so desenha
 // o circulo de grau quando unidade === "C"); os demais mantem a unidade do ESP (C/%/L/min/pH)
 // e formatam o numero com 1 casa decimal (0 casas pra "%", que ja chega inteiro do ESP).
+//
+// 24-espc: o sensor fisico (SW-520D) e o dado bruto (bool) continuam os mesmos — so o
+// ROTULO mudou, porque o usuario repurposou este sensor pra indicar nivel de agua do
+// aquario (nao mais "esta tombado/inclinado").
 function formatarValorParaDisplay(sensor) {
     if (sensor.unidade === 'bool') {
-        return { valor: sensor.valor ? 'INCLINADO' : 'NORMAL', unidade: '' };
+        return { valor: sensor.valor ? 'NIVEL BAIXO' : 'NORMAL', unidade: '' };
     }
     if (typeof sensor.valor === 'number') {
         const casas = sensor.unidade === '%' ? 0 : 1;
