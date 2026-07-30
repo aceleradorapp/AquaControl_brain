@@ -13,6 +13,31 @@ function colunaExiste(db, tabela, coluna) {
     return colunas.some((c) => c.name === coluna);
 }
 
+// 24-espc: "faixas_seguras" tinha 1 linha por TIPO de sensor — "sensor_temp" cobria agua E ar
+// juntos, sem distincao. O usuario pediu calibracao SEPARADA pra agua (controla o aquario,
+// 3x DS18B20) e ar (1x DHT11) — as chaves mudam de "sensor_temp"/"sensor_ph"/"sensor_umidade"
+// pra "temp_agua"/"temp_ar"/"ph_agua"/"umidade_ar". Migra as linhas antigas preservando os
+// valores ja customizados (o antigo "sensor_temp" vira o novo "temp_ar" — "temp_agua" fica de
+// fora de proposito, ganha o default novo pedido explicitamente pelo usuario, 22-28, aplicado
+// no INSERT OR IGNORE logo depois desta funcao). So roda uma vez — se as chaves antigas nao
+// existirem mais (instalacao nova, ou upgrade ja aplicado antes), nao faz nada.
+function migrarFaixasSegurasParaChavesEspecificas(db) {
+    if (!tabelaExiste(db, 'faixas_seguras')) return;
+
+    const antigoTemp = db.prepare("SELECT * FROM faixas_seguras WHERE sensor_tipo = 'sensor_temp'").get();
+    const antigoPh = db.prepare("SELECT * FROM faixas_seguras WHERE sensor_tipo = 'sensor_ph'").get();
+    const antigoUmidade = db.prepare("SELECT * FROM faixas_seguras WHERE sensor_tipo = 'sensor_umidade'").get();
+    if (!antigoTemp && !antigoPh && !antigoUmidade) return;
+
+    const upsert = db.prepare('INSERT OR IGNORE INTO faixas_seguras (sensor_tipo, minimo, maximo) VALUES (?, ?, ?)');
+    if (antigoTemp) upsert.run('temp_ar', antigoTemp.minimo, antigoTemp.maximo);
+    if (antigoPh) upsert.run('ph_agua', antigoPh.minimo, antigoPh.maximo);
+    if (antigoUmidade) upsert.run('umidade_ar', antigoUmidade.minimo, antigoUmidade.maximo);
+
+    db.exec("DELETE FROM faixas_seguras WHERE sensor_tipo IN ('sensor_temp', 'sensor_ph', 'sensor_umidade')");
+    console.log('[migrate] faixas_seguras migrada pra chaves especificas (temp_agua/temp_ar/ph_agua/umidade_ar).');
+}
+
 // 06-espc: a antiga tabela "esps" virou "modulos" (+ campo "ativo", - campo "status").
 // Só roda uma vez, na primeira inicialização depois do upgrade — preserva os módulos já
 // cadastrados em vez de descartar tudo.
@@ -313,6 +338,17 @@ function runMigrations(db) {
         );
     `);
 
+    // 17-espc (Central de Relatorios, consumo de agua): totalizador de volume do fluxometro
+    // (YF-S201), lido direto do proprio ESP a cada snapshot (nao calculado aqui) — NULL pra
+    // qualquer sensor que nao seja "fluxo_agua". Precisa ser uma coluna a parte (nao dá pra
+    // reaproveitar "valor", que pro fluxometro guarda a VAZAO instantanea em L/min, nao o
+    // volume acumulado) porque o relatorio de consumo total no periodo soma os DELTAS
+    // positivos entre snapshots consecutivos deste campo (robusto a reset do contador num
+    // reboot do ESP) — ver relatoriosService.js.
+    if (!colunaExiste(db, 'historico_sensores', 'volume_total_l')) {
+        db.exec('ALTER TABLE historico_sensores ADD COLUMN volume_total_l REAL;');
+    }
+
     // 16-espc: quais sensores (no maximo 6, aplicado no controller) aparecem na tela
     // principal do Display, e em que ordem/posicao (0-5, cada posicao vira um slot no grid
     // do firmware) — configuravel no widget "Sensores no Display" do dashboard. Uma linha
@@ -343,6 +379,95 @@ function runMigrations(db) {
             nome_display TEXT,
             atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+    `);
+
+    // 19-espc (Configuracoes Globais do Sistema): armazem generico chave/valor pra
+    // preferencias heterogeneas (aparencia, notificacoes, intervalos de polling, retencao de
+    // historico etc.) — chave/valor em vez de uma tabela rigida por categoria porque a lista
+    // de configuracoes vai crescer aos poucos e nem toda categoria da pagina de Configuracoes
+    // tem dado real pra persistir (ver 01-espc-geral/19_configuracoes_globais.md pra quais
+    // chaves existem hoje e o que cada uma controla de verdade). "valor" fica como TEXT — quem
+    // le decide se interpreta como numero/bool/JSON.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS configuracoes_gerais (
+            chave TEXT PRIMARY KEY,
+            valor TEXT,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    // 19-espc: faixas de seguranca — usadas pra marcar anomalias/alertas na Central de
+    // Relatorios (17-espc). Antes eram uma constante hardcoded em relatoriosService.js
+    // (FAIXAS_SEGURAS); agora sao editaveis na pagina de Configuracoes. 24-espc: a chave
+    // deixou de ser o "tipo" cru do sensor (que misturava agua e ar sob "sensor_temp") e virou
+    // um grupo especifico — ver migrarFaixasSegurasParaChavesEspecificas acima.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS faixas_seguras (
+            sensor_tipo TEXT PRIMARY KEY,
+            minimo REAL NOT NULL,
+            maximo REAL NOT NULL
+        );
+    `);
+
+    migrarFaixasSegurasParaChavesEspecificas(db);
+
+    // Semeia qualquer chave ainda ausente (instalacao nova, ou uma que a migracao acima nao
+    // tinha o que preservar) com os defaults — "temp_agua" 22-28 e o valor pedido
+    // explicitamente pelo usuario (controla a temperatura do proprio aquario).
+    const inserirFaixaSeAusente = db.prepare('INSERT OR IGNORE INTO faixas_seguras (sensor_tipo, minimo, maximo) VALUES (?, ?, ?)');
+    inserirFaixaSeAusente.run('temp_agua', 22, 28);
+    inserirFaixaSeAusente.run('temp_ar', 22, 28);
+    inserirFaixaSeAusente.run('ph_agua', 6.5, 7.5);
+    inserirFaixaSeAusente.run('umidade_ar', 30, 80);
+
+    // 19-espc: Equipamentos & Automacao — termostato por histerese (aquecedor/resfriador),
+    // multiplos e independentes, cada um observando UM sensor e controlando UM rele. "tipo"
+    // decide a polaridade: "aquecedor" liga quando o sensor fica ABAIXO de "temp_min" e
+    // desliga quando fica ACIMA de "temp_max"; "resfriador" e o inverso (liga acima do
+    // maximo, desliga abaixo do minimo). Entre os dois limites, o motor NAO MEXE no estado
+    // atual (histerese classica — evita liga/desliga em sequencia rapida bem em cima do
+    // limiar). "atraso_segundos" exige que a condicao de troca se mantenha por esse tempo
+    // antes de agir de verdade (debounce contra picos passageiros de leitura). Ver
+    // automacaoEquipamentosService.js.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS equipamentos_automacao (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            modulo_id INTEGER NOT NULL,
+            posicao_indice INTEGER NOT NULL,
+            nome TEXT NOT NULL,
+            sensor_id TEXT NOT NULL,
+            tipo TEXT NOT NULL CHECK (tipo IN ('aquecedor', 'resfriador')),
+            temp_min REAL NOT NULL,
+            temp_max REAL NOT NULL,
+            atraso_segundos INTEGER NOT NULL DEFAULT 30,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (modulo_id) REFERENCES modulos (id) ON DELETE CASCADE,
+            UNIQUE (modulo_id, posicao_indice)
+        );
+    `);
+
+    // 24-espc: Calibracao de Vazao (fluxometro YF-S201) — linha unica (so existe 1
+    // fluxometro), valores em LITROS/HORA (nao L/min, que e a unidade nativa do sensor —
+    // "litros hora" e como o usuario pensa na vazao da propria bomba, ex.: "bomba de 2000
+    // L/h"; a conversao L/min -> L/h [x60] acontece em relatoriosService.js na hora de
+    // comparar). "vazao_troca_filtro_lh" e o 3º limite pedido: um patamar ACIMA do minimo
+    // critico que sinaliza "vazao caindo, provavelmente o filtro esta entupindo" — o usuario
+    // pretende calibrar esse numero na pratica, observando o historico real de vazao ja
+    // gravado (ver historico_sensores/volume_total_l, 17-espc) ao longo do tempo; o default
+    // aqui e so um ponto de partida.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS calibracao_fluxo (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            vazao_maxima_lh REAL NOT NULL DEFAULT 2000,
+            vazao_minima_lh REAL NOT NULL DEFAULT 200,
+            vazao_troca_filtro_lh REAL NOT NULL DEFAULT 800,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+    db.exec(`
+        INSERT OR IGNORE INTO calibracao_fluxo (id, vazao_maxima_lh, vazao_minima_lh, vazao_troca_filtro_lh)
+        VALUES (1, 2000, 200, 800)
     `);
 }
 

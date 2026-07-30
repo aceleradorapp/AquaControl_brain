@@ -52,6 +52,183 @@
 }
 
 /*
+ * Temas alternativos (22-espc, ver 01-espc-geral/22_temas_visuais.md) — mesmo mecanismo do
+ * Modo Panico abaixo: so sobrescrevem as variaveis, nenhum componente precisa saber qual
+ * tema esta ativo. Aplicados como classe no container raiz do Dashboard (persistido em
+ * localStorage, escolhido em Configuracoes Globais -> Sistema & Plataforma -> Aparencia,
+ * ver ModalConfiguracoes.jsx). "Ciano Tatico" (as variaveis de :root acima) e o tema padrao
+ * e nao precisa de classe propria.
+ *
+ * IMPORTANTE: estes dois blocos precisam continuar ANTES de ".dashboard--panico" no arquivo
+ * — Modo Panico tem prioridade absoluta sobre qualquer tema (mesma regra de
+ * Dashboard.jsx:classeVinheta), e como as duas classes podem estar presentes ao mesmo tempo
+ * no elemento raiz com a MESMA especificidade (0,1,0), quem "ganha" e a ultima declarada no
+ * arquivo — .dashboard--panico precisa vir depois.
+ */
+
+/* "Abissal Bioluminescente" — verde-turquesa de bioluminescencia de aguas profundas, no lugar
+   do ciano-eletrico tatico do tema padrao. Escolhido de proposito pra remeter ao proprio
+   assunto do sistema (um aquario), nao so uma variacao de matiz do tema original. */
+.dashboard--tema-abissal {
+    --cor-fundo: #020f14;
+    --cor-fundo-elevado: #06232b;
+    --cor-fundo-painel: #083038;
+    --cor-borda: #0f4a4a;
+    --cor-borda-forte: #14806f;
+
+    --cor-texto: #d9fff2;
+    --cor-texto-secundario: #5fa398;
+
+    --cor-primaria: #00ffb3;
+    --cor-primaria-rgb: 0, 255, 179;
+    /* Indigo-azulado (nao ciano) de proposito — um azul mais proximo do original (#00f0ff)
+       arriscava o tema inteiro "ler" como so uma variacao dessaturada do Ciano Tatico numa
+       comparacao lado a lado; este tom fica visivelmente mais roxo/indigo. */
+    --cor-secundaria: #5b8fff;
+    --cor-secundaria-rgb: 91, 143, 255;
+    --cor-laranja: #ff8a5c;
+    --cor-laranja-rgb: 255, 138, 92;
+
+    --cor-sucesso: #00e676;
+    --cor-erro: #ff4d6a;
+    --cor-alerta: #ffd166;
+
+    --glow-cyan-sm: 0 0 4px rgba(0, 255, 179, 0.8), 0 0 10px rgba(0, 255, 179, 0.35);
+    --glow-cyan-md: 0 0 8px rgba(0, 255, 179, 0.9), 0 0 22px rgba(0, 255, 179, 0.4);
+    --glow-blue-md: 0 0 8px rgba(91, 143, 255, 0.9), 0 0 22px rgba(91, 143, 255, 0.35);
+    --glow-laranja-md: 0 0 8px rgba(255, 138, 92, 0.9), 0 0 22px rgba(255, 138, 92, 0.35);
+}
+
+/* "Ambar Retro" — terminal sonar/CRT de fosforo ambar vintage: mais quente, mais "sala de
+   controle de submarino analogico" do que os outros dois (que sao ambos frios). Pensado pra
+   quem prefere um contraste de temperatura de cor bem diferente (ex.: uso noturno), nao so
+   mais uma variante fria. */
+.dashboard--tema-ambar {
+    --cor-fundo: #120c06;
+    --cor-fundo-elevado: #1f1509;
+    --cor-fundo-painel: #291b0b;
+    --cor-borda: #5c3d14;
+    --cor-borda-forte: #8f5f1c;
+
+    --cor-texto: #ffe9c7;
+    --cor-texto-secundario: #b8935f;
+
+    --cor-primaria: #ffb000;
+    --cor-primaria-rgb: 255, 176, 0;
+    --cor-secundaria: #ff7043;
+    --cor-secundaria-rgb: 255, 112, 67;
+    --cor-laranja: #ffd54f;
+    --cor-laranja-rgb: 255, 213, 79;
+
+    --cor-sucesso: #7ed321;
+    --cor-erro: #ff3b3b;
+    --cor-alerta: #ffcf40;
+
+    --glow-cyan-sm: 0 0 4px rgba(255, 176, 0, 0.8), 0 0 10px rgba(255, 176, 0, 0.35);
+    --glow-cyan-md: 0 0 8px rgba(255, 176, 0, 0.9), 0 0 22px rgba(255, 176, 0, 0.4);
+    --glow-blue-md: 0 0 8px rgba(255, 112, 67, 0.9), 0 0 22px rgba(255, 112, 67, 0.35);
+    --glow-laranja-md: 0 0 8px rgba(255, 213, 79, 0.9), 0 0 22px rgba(255, 213, 79, 0.35);
+}
+
+/* "Escuro Neutro" — modo dark profissional/flat, deliberadamente MENOS neon que os outros
+   tres (glows bem mais fracos, paleta quase monocromatica cinza-azulada) — pensado pra quem
+   acha o visual sci-fi cansativo e quer algo mais "aplicativo comum", sem perder a estrutura
+   chanfrada/HUD dos paineis. */
+.dashboard--tema-escuro {
+    --cor-fundo: #0d0f12;
+    --cor-fundo-elevado: #16191d;
+    --cor-fundo-painel: #1c2025;
+    --cor-borda: #2a2f36;
+    --cor-borda-forte: #3d444d;
+
+    --cor-texto: #e6e8eb;
+    --cor-texto-secundario: #8b929c;
+
+    --cor-primaria: #5b9dd9;
+    --cor-primaria-rgb: 91, 157, 217;
+    --cor-secundaria: #7c8ba1;
+    --cor-secundaria-rgb: 124, 139, 161;
+    --cor-laranja: #d99a5b;
+    --cor-laranja-rgb: 217, 154, 91;
+
+    --cor-sucesso: #4caf6e;
+    --cor-erro: #d9534f;
+    --cor-alerta: #d9a441;
+
+    --glow-cyan-sm: 0 0 3px rgba(91, 157, 217, 0.5), 0 0 6px rgba(91, 157, 217, 0.2);
+    --glow-cyan-md: 0 0 5px rgba(91, 157, 217, 0.6), 0 0 12px rgba(91, 157, 217, 0.25);
+    --glow-blue-md: 0 0 5px rgba(124, 139, 161, 0.5), 0 0 12px rgba(124, 139, 161, 0.2);
+    --glow-laranja-md: 0 0 5px rgba(217, 154, 91, 0.6), 0 0 12px rgba(217, 154, 91, 0.25);
+}
+
+/* "Vivido" — vaporwave/synthwave, deliberadamente MAIS saturado/brilhante que os outros:
+   magenta + ciano + amarelo sobre roxo quase-preto. "erro" fica um vermelho puro (nao rosa)
+   de proposito, pra nao se misturar com o magenta primario num relance. */
+.dashboard--tema-vivido {
+    --cor-fundo: #120019;
+    --cor-fundo-elevado: #1f0330;
+    --cor-fundo-painel: #2b0645;
+    --cor-borda: #5b1d8c;
+    --cor-borda-forte: #9b30ff;
+
+    --cor-texto: #fbe9ff;
+    --cor-texto-secundario: #c48fe0;
+
+    --cor-primaria: #ff2fd0;
+    --cor-primaria-rgb: 255, 47, 208;
+    --cor-secundaria: #35e0ff;
+    --cor-secundaria-rgb: 53, 224, 255;
+    --cor-laranja: #ffd60a;
+    --cor-laranja-rgb: 255, 214, 10;
+
+    --cor-sucesso: #39ff88;
+    --cor-erro: #ff3838;
+    --cor-alerta: #ffb300;
+
+    --glow-cyan-sm: 0 0 4px rgba(255, 47, 208, 0.85), 0 0 12px rgba(255, 47, 208, 0.4);
+    --glow-cyan-md: 0 0 10px rgba(255, 47, 208, 0.9), 0 0 26px rgba(255, 47, 208, 0.45);
+    --glow-blue-md: 0 0 10px rgba(53, 224, 255, 0.9), 0 0 26px rgba(53, 224, 255, 0.4);
+    --glow-laranja-md: 0 0 10px rgba(255, 214, 10, 0.9), 0 0 26px rgba(255, 214, 10, 0.4);
+}
+
+/* "Claro" — o unico tema CLARO: quase branco, com variacao real entre as 3 camadas de
+   superficie (fundo levemente cinza-azulado, elevado branco puro "levantando" acima da base,
+   painel num cinza-azulado palido distinto dos outros dois) — o pedido explicito do usuario
+   de "praticamente branco com algumas variacoes". Glows cortados bem forte: um glow neon
+   saturado sobre fundo branco nao le como "neon", so como um borrao colorido feio. */
+.dashboard--tema-claro {
+    --cor-fundo: #f4f6f8;
+    --cor-fundo-elevado: #ffffff;
+    --cor-fundo-painel: #eaeff3;
+    --cor-borda: #c3ccd6;
+    --cor-borda-forte: #8a97a6;
+
+    --cor-texto: #1a2430;
+    --cor-texto-secundario: #5c6b7a;
+
+    /* Tons mais escuros/saturados do que os equivalentes nos temas escuros de proposito —
+       um tema claro precisa de MAIS contraste de cor (nao so de luminosidade) pra continuar
+       legivel como TEXTO (nao so como decoracao) em cima de fundo quase-branco; os tons mais
+       claros testados inicialmente (#0077cc, #d9720f, #1a9c53, #c68a00) falhavam AA como
+       texto de corpo numa revisao de contraste. */
+    --cor-primaria: #1d4ed8;
+    --cor-primaria-rgb: 29, 78, 216;
+    --cor-secundaria: #6d28d9;
+    --cor-secundaria-rgb: 109, 40, 217;
+    --cor-laranja: #c2410c;
+    --cor-laranja-rgb: 194, 65, 12;
+
+    --cor-sucesso: #15803d;
+    --cor-erro: #b91c1c;
+    --cor-alerta: #b45309;
+
+    --glow-cyan-sm: 0 0 2px rgba(29, 78, 216, 0.25), 0 0 4px rgba(29, 78, 216, 0.12);
+    --glow-cyan-md: 0 0 3px rgba(29, 78, 216, 0.3), 0 0 8px rgba(29, 78, 216, 0.15);
+    --glow-blue-md: 0 0 3px rgba(109, 40, 217, 0.3), 0 0 8px rgba(109, 40, 217, 0.15);
+    --glow-laranja-md: 0 0 3px rgba(194, 65, 12, 0.3), 0 0 8px rgba(194, 65, 12, 0.15);
+}
+
+/*
  * Modo Panico (botao de emergencia, ver HeaderTatico.jsx/Dashboard.jsx): reaproveita o
  * mesmo mecanismo descrito acima — so sobrescreve as variaveis, nenhum componente precisa
  * saber que esta em modo panico, ja que tudo referencia var(--cor-primaria) etc. Aplicado

@@ -7,8 +7,17 @@
 // repetidas de um sensor parado).
 const db = require('../database/db');
 
-const INTERVALO_MS = 5000;
+const INTERVALO_PADRAO_MS = 5000;
 const TIMEOUT_MS = 4000;
+
+// 19-espc: intervalo configuravel em Configuracoes -> Modulos Hardware & Conectividade —
+// consultado a cada ciclo (nao só uma vez no boot), pra uma mudança na tela de Configuracoes
+// valer a partir do proximo ciclo, sem precisar reiniciar o servidor.
+function obterIntervaloConfiguradoMs() {
+    const linha = db.prepare("SELECT valor FROM configuracoes_gerais WHERE chave = 'intervalo_polling_sensores_ms'").get();
+    const intervalo = Number(linha?.valor);
+    return Number.isFinite(intervalo) && intervalo >= 1000 ? intervalo : INTERVALO_PADRAO_MS;
+}
 
 let ultimaLeitura = null; // { disponivel, timestamp_ms, sensores: [...] } — ver GET /api/sensores do ESP
 const ultimosValoresGravados = new Map(); // sensor_id -> valor (String ou null) ja gravado no historico
@@ -37,20 +46,30 @@ function aplicarNomesPersonalizados(sensores) {
 }
 
 const inserirHistorico = db.prepare(`
-    INSERT INTO historico_sensores (modulo_id, sensor_id, tipo, nome, valor, unidade, conectado)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO historico_sensores (modulo_id, sensor_id, tipo, nome, valor, unidade, conectado, volume_total_l)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 // So grava quando o valor (ou o estado conectado/desconectado) realmente mudou desde a
 // ultima linha gravada deste sensor — "valor" vira String (ou null se desconectado) pra
 // comparar de forma simples e uniforme entre numero/bool.
+//
+// EXCECAO (17-espc, Central de Relatorios — consumo de agua): "fluxo_agua" grava TODO ciclo,
+// nao so quando muda. E um contador monotonico (volume_total_l) que continua subindo mesmo
+// com a vazao instantanea (L/min) parada em um valor constante — se so gravasse na mudanca de
+// "valor" (a vazao), o relatorio de consumo perderia a maior parte da acumulacao real durante
+// um periodo de vazao estavel e nao-zero. Como o ciclo ja e de 5s, gravar sempre so pra este
+// UM sensor nao pesa no banco (no maximo ~17k linhas/dia).
 function registrarMudancas(moduloId, sensores) {
     for (const sensor of sensores) {
+        const ehFluxo = sensor.tipo === 'sensor_fluxo';
         const valorAtual = sensor.conectado ? String(sensor.valor) : null;
         const valorAnterior = ultimosValoresGravados.has(sensor.id) ? ultimosValoresGravados.get(sensor.id) : undefined;
+        const mudou = valorAnterior === undefined || valorAnterior !== valorAtual;
 
-        if (valorAnterior === undefined || valorAnterior !== valorAtual) {
-            inserirHistorico.run(moduloId, sensor.id, sensor.tipo, sensor.nome, valorAtual, sensor.unidade ?? null, sensor.conectado ? 1 : 0);
+        if (mudou || ehFluxo) {
+            const volumeTotal = ehFluxo && sensor.conectado && typeof sensor.volume_total_l === 'number' ? sensor.volume_total_l : null;
+            inserirHistorico.run(moduloId, sensor.id, sensor.tipo, sensor.nome, valorAtual, sensor.unidade ?? null, sensor.conectado ? 1 : 0, volumeTotal);
             ultimosValoresGravados.set(sensor.id, valorAtual);
         }
     }
@@ -90,9 +109,15 @@ function obterUltimaLeitura() {
     return ultimaLeitura;
 }
 
+// setTimeout recursivo (nao setInterval) — cada ciclo agenda o proximo lendo o intervalo
+// configurado NA HORA, entao mudar o valor em Configuracoes se reflete a partir do proximo
+// ciclo, sem precisar reiniciar o servidor.
 function iniciarMonitoramentoSensores() {
-    cicloSensores();
-    setInterval(cicloSensores, INTERVALO_MS);
+    async function passo() {
+        await cicloSensores();
+        setTimeout(passo, obterIntervaloConfiguradoMs());
+    }
+    passo();
 }
 
 module.exports = { iniciarMonitoramentoSensores, obterUltimaLeitura };

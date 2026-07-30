@@ -7,7 +7,15 @@ const net = require('net');
 const db = require('../database/db');
 
 const TIMEOUT_PING_MS = 1500;
-const INTERVALO_MONITORAMENTO_MS = 10000;
+const INTERVALO_PADRAO_MS = 10000;
+
+// 19-espc: intervalo configuravel em Configuracoes -> Modulos Hardware & Conectividade —
+// consultado a cada ciclo, mesmo espirito de sensoresTelemetriaService.js.
+function obterIntervaloConfiguradoMs() {
+    const linha = db.prepare("SELECT valor FROM configuracoes_gerais WHERE chave = 'intervalo_ping_modulos_ms'").get();
+    const intervalo = Number(linha?.valor);
+    return Number.isFinite(intervalo) && intervalo >= 2000 ? intervalo : INTERVALO_PADRAO_MS;
+}
 
 const statusPorModulo = new Map(); // moduloId -> boolean (online/offline)
 let intervaloAtivo = null;
@@ -54,11 +62,18 @@ function estaOnline(moduloId) {
     return statusPorModulo.get(moduloId) ?? false;
 }
 
+// setTimeout recursivo (nao setInterval) — cada ciclo agenda o proximo lendo o intervalo
+// configurado na hora (19-espc), pra uma mudança em Configuracoes valer a partir do proximo
+// ciclo sem reiniciar o servidor.
 function iniciarMonitoramento() {
     if (intervaloAtivo) return; // evita duplicar o laço se chamado mais de uma vez
+    intervaloAtivo = true;
 
-    verificarTodosOsModulos(); // checagem imediata, não espera o 1º intervalo
-    intervaloAtivo = setInterval(verificarTodosOsModulos, INTERVALO_MONITORAMENTO_MS);
+    async function passo() {
+        await verificarTodosOsModulos();
+        setTimeout(passo, obterIntervaloConfiguradoMs());
+    }
+    passo();
 }
 
 module.exports = { iniciarMonitoramento, estaOnline, verificarModulo, verificarTodosOsModulos };

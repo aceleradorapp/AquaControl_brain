@@ -10,6 +10,8 @@ const agendamentosRoutes = require('./agendamentosRoutes');
 const timersRoutes = require('./timersRoutes');
 const { listarDispositivosAtuais } = require('../controllers/dispositivosController');
 const { obterHistoricoReles } = require('../controllers/historicoRelesController');
+const relatoriosRoutes = require('./relatoriosRoutes');
+const configuracoesRoutes = require('./configuracoesRoutes');
 
 const router = express.Router();
 
@@ -38,5 +40,12 @@ router.get('/dispositivos-atuais', listarDispositivosAtuais);
 
 // Historico de acionamento dos reles (13-espc) — ver historicoRelesController.js
 router.get('/historico-reles', obterHistoricoReles);
+
+// Central de Relatorios e Analises (17-espc) — ver relatoriosService.js/relatoriosController.js
+router.use('/relatorios', relatoriosRoutes);
+
+// Configuracoes Globais do Sistema (19-espc) — ver configuracoesGeraisController.js/
+// equipamentosAutomacaoController.js/automacaoEquipamentosService.js.
+router.use('/configuracoes', configuracoesRoutes);
 
 module.exports = router;

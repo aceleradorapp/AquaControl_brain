@@ -1,0 +1,270 @@
+/* Configuracoes Globais do Sistema (19-espc) — layout estilo "VS Code Settings" */
+
+.config-pagina {
+    display: flex;
+    gap: var(--espaco-md);
+    height: 100%;
+    min-height: 60vh;
+}
+
+.config-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 0 0 240px;
+    border-right: 1px solid var(--cor-borda);
+    padding-right: var(--espaco-sm);
+}
+.config-sidebar__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    border-left: 2px solid transparent;
+    color: var(--cor-texto-secundario);
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.config-sidebar__item:hover {
+    color: var(--cor-texto);
+    background: rgba(var(--cor-primaria-rgb), 0.05);
+}
+.config-sidebar__item.ativo {
+    color: var(--cor-primaria);
+    border-left-color: var(--cor-primaria);
+    background: rgba(var(--cor-primaria-rgb), 0.08);
+}
+
+.config-conteudo {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    min-width: 0;
+}
+.config-busca {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-fundo-elevado);
+}
+.config-busca .hud-input {
+    border: none;
+    background: transparent;
+    flex: 1;
+}
+.config-conteudo__corpo {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+    padding-right: 4px;
+}
+
+/* --- Seletor de Tema Visual (22-espc) --- */
+.config-tema-grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--espaco-sm);
+}
+.config-tema-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: var(--espaco-sm) var(--espaco-md);
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.config-tema-card:hover {
+    border-color: var(--cor-borda-forte);
+    transform: translateY(-1px);
+}
+.config-tema-card.ativo {
+    border-color: var(--cor-primaria);
+    box-shadow: var(--glow-cyan-sm);
+}
+.config-tema-card__swatches {
+    display: flex;
+    gap: 4px;
+}
+.config-tema-card__swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.config-tema-card__nome {
+    font-family: var(--fonte-titulo);
+    font-size: 0.8rem;
+    color: var(--cor-texto);
+}
+.config-tema-card__descricao {
+    font-size: 0.68rem;
+    color: var(--cor-texto-secundario);
+    white-space: normal;
+    line-height: 1.4;
+}
+
+.config-cartao__corpo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+}
+.config-nota {
+    display: block;
+    white-space: normal;
+    line-height: 1.4;
+    opacity: 0.8;
+}
+
+.config-linha {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--espaco-md);
+    padding: 8px 0;
+    border-bottom: 1px solid var(--cor-borda);
+    flex-wrap: wrap;
+}
+.config-linha__texto {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 200px;
+}
+.config-linha__titulo {
+    font-size: 0.82rem;
+    color: var(--cor-texto);
+}
+.config-linha__descricao {
+    font-size: 0.7rem;
+    color: var(--cor-texto-secundario);
+    white-space: normal;
+    line-height: 1.4;
+}
+.config-linha__campo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.config-toggle {
+    position: relative;
+    width: 38px;
+    height: 20px;
+    border-radius: 10px;
+    border: 1px solid var(--cor-borda-forte);
+    background: var(--cor-fundo-elevado);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    flex-shrink: 0;
+}
+.config-toggle__bola {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--cor-texto-secundario);
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+.config-toggle.ativo {
+    border-color: var(--cor-sucesso);
+    background: rgba(0, 255, 127, 0.12);
+}
+.config-toggle.ativo .config-toggle__bola {
+    transform: translateX(18px);
+    background: var(--cor-sucesso);
+    box-shadow: 0 0 6px var(--cor-sucesso);
+}
+
+.config-campo-numero {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.config-campo-numero .hud-input {
+    width: 100px;
+}
+.config-select {
+    min-width: 160px;
+}
+.config-input-pequeno {
+    width: 80px;
+}
+
+.config-equipamento {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: 8px 10px;
+    border: 1px solid var(--cor-borda);
+    background: var(--cor-fundo-elevado);
+}
+.config-equipamento__texto {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.config-backup__acoes {
+    display: flex;
+    gap: var(--espaco-sm);
+    flex-wrap: wrap;
+}
+.config-backup__importar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.config-barra-salvar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda-forte);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+}
+.config-barra-salvar__acoes {
+    display: flex;
+    gap: var(--espaco-sm);
+}
+
+@media (max-width: 800px) {
+    .config-pagina {
+        flex-direction: column;
+    }
+    .config-sidebar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        border-right: none;
+        border-bottom: 1px solid var(--cor-borda);
+        padding-right: 0;
+        padding-bottom: var(--espaco-sm);
+    }
+    .config-sidebar__item {
+        border-left: none;
+        border-bottom: 2px solid transparent;
+    }
+    .config-sidebar__item.ativo {
+        border-bottom-color: var(--cor-primaria);
+    }
+}
