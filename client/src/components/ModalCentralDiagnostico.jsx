@@ -27,7 +27,6 @@ export default function ModalCentralDiagnostico({
     estadoReles,
     onAbrirEsquematicoReles,
     onAbrirEsquematicoSensores,
-    onAbrirConfigurarSensoresDisplay,
     onAbrirMapeamentoPortas,
     onAtualizarModulo,
     registrarLog,
@@ -74,10 +73,13 @@ export default function ModalCentralDiagnostico({
         acao();
     }
 
+    // 29-espc: o modulo "display" nao tem mais uma modal propria pra abrir daqui (o widget
+    // "Sensores no Display"/sua modal de configuracao foram removidos — a tela principal do
+    // Display hoje so mostra 3 arcos fixos, sem selecao configuravel) — clicar no no dele no
+    // diagrama simplesmente nao navega pra lugar nenhum agora.
     function aoClicarModulo(modulo) {
         if (modulo.tipo === 'atuador') navegarPara(onAbrirEsquematicoReles);
         else if (modulo.tipo === 'telemetria') navegarPara(onAbrirEsquematicoSensores);
-        else if (modulo.tipo === 'display') navegarPara(onAbrirConfigurarSensoresDisplay);
     }
 
     async function iniciarDiagnostico() {
@@ -157,6 +159,20 @@ export default function ModalCentralDiagnostico({
                 tipo: falhas > 0 ? 'fail' : 'ok',
             },
         ]);
+
+        // 31-espc: alem da varredura rica (client-side, o terminal acima), registra TAMBEM
+        // um Diagnostico Manual persistido no backend — e o que faz esta execucao aparecer
+        // como uma linha clicavel no System Log (ver TerminalLogs.jsx/ModalDetalheDiagnostico.jsx).
+        // Roda em paralelo com o proprio checklist do backend (banco/modulos/sensores, ver
+        // diagnosticoService.js) — nao reaproveita "passos"/"falhas" daqui de proposito: sao
+        // dois checklists independentes, um mais rico (interativo, so nesta tela) e outro mais
+        // simples mas persistido/historico (aberto a partir do log).
+        try {
+            await fetch('/api/diagnostics/executar', { method: 'POST' });
+        } catch {
+            // nao interrompe a varredura por conta disso — o terminal acima ja mostrou o resultado
+        }
+
         setExecutando(false);
     }
 

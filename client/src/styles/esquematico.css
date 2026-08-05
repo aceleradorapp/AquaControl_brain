@@ -265,12 +265,12 @@
 }
 .esquematico__sensor-nome {
     font-family: var(--fonte-mono);
-    font-size: 10px;
+    font-size: 9px;
     fill: var(--cor-texto);
 }
 .esquematico__sensor-status {
     font-family: var(--fonte-mono);
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 600;
     letter-spacing: 0.3px;
 }

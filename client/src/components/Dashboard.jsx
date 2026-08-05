@@ -23,7 +23,11 @@ import {
     ServerCrash,
     MonitorOff,
     BookOpen,
+    Smartphone,
+    Eye,
+    Fish,
 } from 'lucide-react';
+import { useEhMobile } from '../hooks/useEhMobile';
 import HeaderTatico from './HeaderTatico';
 import AlertasConectividade from './AlertasConectividade';
 import PainelParametrosVitais from './PainelParametrosVitais';
@@ -41,18 +45,22 @@ import ModalMenuAcoes from './ModalMenuAcoes';
 import EsquematicoInterativo from './EsquematicoInterativo';
 import EsquematicoSensores from './EsquematicoSensores';
 import ModalSelecionarEsquematico from './ModalSelecionarEsquematico';
-import WidgetSensoresDisplay from './WidgetSensoresDisplay';
-import ModalConfigurarSensoresDisplay from './ModalConfigurarSensoresDisplay';
+import WidgetSensoresSistema from './WidgetSensoresSistema';
 import ModalCentralRelatorios from './ModalCentralRelatorios';
 import ModalConfiguracoes from './ModalConfiguracoes';
 import ModalCentralDiagnostico from './ModalCentralDiagnostico';
+import ModalDetalheDiagnostico from './ModalDetalheDiagnostico';
+import ModalLogsCompleto from './ModalLogsCompleto';
+import ModalGestaoFauna from './ModalGestaoFauna';
 import ModalDocumentacao from './ModalDocumentacao';
 import AgendamentosWidget from './AgendamentosWidget';
 import ModalAgendamento from './ModalAgendamento';
 import ModalListaAgendamentos from './ModalListaAgendamentos';
 import ModalTimer from './ModalTimer';
 import ColunaWidgets from './ColunaWidgets';
-import { gerarHistoricoMensal, gerarHistoricoTemperatura, gerarUmidadeInicial } from '../utils/mockData';
+import ModalConfiguracoesCelular from './ModalConfiguracoesCelular';
+import MenuLateralMobile from './MenuLateralMobile';
+import { calcularMediaTemperaturaAgua } from '../utils/sensores';
 import '../styles/dashboard.css';
 import '../styles/agendamentos.css';
 import '../styles/widgets-layout.css';
@@ -60,6 +68,7 @@ import '../styles/alertas.css';
 import '../styles/relatorios.css';
 import '../styles/configuracoes.css';
 import '../styles/diagnostico.css';
+import '../styles/mobile.css';
 
 let proximoIdLog = 1;
 
@@ -75,6 +84,12 @@ const CHAVE_LOCALSTORAGE_LAYOUT_LEGADO = 'aquacontrol_brain_layout_widgets'; // 
 const CHAVE_LOCALSTORAGE_LAYOUT_NORMAL = 'aquacontrol_brain_layout_widgets_normal';
 const CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO = 'aquacontrol_brain_layout_widgets_compacto';
 const CHAVE_LOCALSTORAGE_MODO_COMPACTO = 'aquacontrol_brain_modo_compacto';
+// Layout do CELULAR (29-espc) — totalmente INDEPENDENTE de layoutNormal/layoutCompacto: sem
+// drag-and-drop no toque (ver useEhMobile()/ModalConfiguracoesCelular.jsx), entao e uma
+// lista PLANA (1 coluna so, nao 3) reordenada por botoes de subir/descer, com sua propria
+// visibilidade por widget — esconder algo no celular nao afeta o desktop e vice-versa.
+const CHAVE_LOCALSTORAGE_LAYOUT_MOBILE = 'aquacontrol_brain_layout_widgets_mobile';
+const CHAVE_LOCALSTORAGE_VISIBILIDADE_MOBILE = 'aquacontrol_brain_widgets_visiveis_mobile';
 // Tema visual (22-espc) — mesma logica de persistencia client-only de modoCompacto/
 // escalaWidgets acima (preferencia de navegador, nao faz sentido no backend). "ciano" e o
 // tema padrao/original e nao precisa de nenhuma classe CSS propria (e o que ja esta em :root).
@@ -111,6 +126,63 @@ const VISIBILIDADE_PADRAO = {
     agendamentos: true,
     sensoresDisplay: true,
 };
+
+// Ordem padrao do celular (29-espc) — os mais "acao rapida" primeiro (Parametros Vitais,
+// Central do Aquario), o resto na mesma ordem que ja tinham no layout padrao de desktop.
+const LAYOUT_MOBILE_PADRAO = [
+    'parametrosVitais',
+    'centralAquario',
+    'agendamentos',
+    'temas',
+    'historicoTermico',
+    'sensoresDisplay',
+    'matrizReles',
+    'modulosControladores',
+    'qrcodes',
+    'systemLog',
+];
+
+// Mesma logica de normalizarLayout() acima, so que pra lista PLANA do celular: preserva a
+// ordem salva (filtrando chaves que nao existem mais) e acrescenta no fim qualquer widget
+// novo que ainda nao apareça na lista salva.
+function normalizarLayoutMobile(bruto) {
+    const chavesValidas = new Set(Object.keys(VISIBILIDADE_PADRAO));
+    const vistas = new Set();
+    const layout = [];
+
+    for (const chave of Array.isArray(bruto) ? bruto : []) {
+        if (chavesValidas.has(chave) && !vistas.has(chave)) {
+            layout.push(chave);
+            vistas.add(chave);
+        }
+    }
+    for (const chave of LAYOUT_MOBILE_PADRAO) {
+        if (chavesValidas.has(chave) && !vistas.has(chave)) {
+            layout.push(chave);
+            vistas.add(chave);
+        }
+    }
+    return layout;
+}
+
+function carregarLayoutMobileSalvo() {
+    try {
+        const salvo = localStorage.getItem(CHAVE_LOCALSTORAGE_LAYOUT_MOBILE);
+        return normalizarLayoutMobile(salvo ? JSON.parse(salvo) : LAYOUT_MOBILE_PADRAO);
+    } catch {
+        return normalizarLayoutMobile(LAYOUT_MOBILE_PADRAO);
+    }
+}
+
+function carregarVisibilidadeMobileSalva() {
+    try {
+        const salvo = localStorage.getItem(CHAVE_LOCALSTORAGE_VISIBILIDADE_MOBILE);
+        if (!salvo) return VISIBILIDADE_PADRAO;
+        return { ...VISIBILIDADE_PADRAO, ...JSON.parse(salvo) };
+    } catch {
+        return VISIBILIDADE_PADRAO;
+    }
+}
 
 // Preserva a posição salva de cada widget (filtrando chaves que não existem mais) e insere,
 // no fim da coluna padrão dele, qualquer widget novo (ex.: adicionado numa atualização
@@ -176,10 +248,12 @@ function carregarVisibilidadeSalva() {
 }
 
 // Componente principal do Dashboard (01-espc-geral/05_.../06_...) — grid de 3 colunas.
-// Dono de todo o estado: módulos (real, via /api/modulos), equipamentos/umidade/histórico
-// (local/simulados, ver src/utils/mockData.js), visibilidade de widgets (persistida em
-// localStorage) e o log de eventos. Cada painel recebe só o que precisa via props.
-export default function Dashboard() {
+// Dono de todo o estado: módulos (real, via /api/modulos), equipamentos (local),
+// visibilidade de widgets (persistida em localStorage) e o log de eventos. Cada painel
+// recebe só o que precisa via props. 30-espc: src/utils/mockData.js (histórico/umidade
+// simulados) foi removido — todo dado exibido agora vem do estado real de telemetria
+// (dadosSensores) ou explicitamente aparece como "--" quando o sensor real está offline.
+export default function Dashboard({ onDesparear, onVerModoVisitante }) {
     const [modulos, setModulos] = useState([]);
     const [carregandoModulos, setCarregandoModulos] = useState(true);
     const [erroModulos, setErroModulos] = useState(null);
@@ -224,7 +298,6 @@ export default function Dashboard() {
     // agendamentos ja cadastrados — ver ModalListaAgendamentos.jsx.
     const [modalListaAgendamentosAberto, setModalListaAgendamentosAberto] = useState(false);
     const [modalTimerAberto, setModalTimerAberto] = useState(false);
-    const [umidadeAr, setUmidadeAr] = useState(gerarUmidadeInicial);
     const [logs, setLogs] = useState([]);
     const [visibilidadeWidgets, setVisibilidadeWidgets] = useState(carregarVisibilidadeSalva);
     // Layout movivel + Modo Compacto (20-espc, layouts independentes no 20.1-espc) —
@@ -236,6 +309,14 @@ export default function Dashboard() {
     const [layoutNormal, setLayoutNormal] = useState(() => carregarLayoutSalvo(CHAVE_LOCALSTORAGE_LAYOUT_NORMAL));
     const [layoutCompacto, setLayoutCompacto] = useState(() => carregarLayoutSalvo(CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO));
     const [modoCompacto, setModoCompacto] = useState(carregarModoCompactoSalvo);
+    // Layout do CELULAR (29-espc) — INDEPENDENTE de layoutNormal/layoutCompacto (ver
+    // constantes/loaders no topo do arquivo). "ehMobile" decide, a cada render, se o
+    // dashboard usa este layout (lista plana, sem drag-and-drop) ou o grid de 3 colunas
+    // normal — nenhum arrasto acidental num toque de celular mais.
+    const ehMobile = useEhMobile();
+    const [layoutMobile, setLayoutMobile] = useState(carregarLayoutMobileSalvo);
+    const [visibilidadeWidgetsMobile, setVisibilidadeWidgetsMobile] = useState(carregarVisibilidadeMobileSalva);
+    const [modalConfigCelularAberto, setModalConfigCelularAberto] = useState(false);
     // Tema visual (22-espc) — "ciano" (padrao) nao precisa de classe; "abissal"/"ambar" viram
     // ".dashboard--tema-abissal"/".dashboard--tema-ambar" no container raiz (ver theme.css).
     const [tema, setTemaState] = useState(carregarTemaSalvo);
@@ -276,13 +357,6 @@ export default function Dashboard() {
     // botoes especificos de cada modulo em ModulosControladores.jsx continuam abrindo o
     // esquematico certo direto, sem passar por aqui.
     const [modalSelecionarEsquematicoAberto, setModalSelecionarEsquematicoAberto] = useState(false);
-
-    // Sensores no Display (16-espc): quais sensores (max 6) e em que ordem aparecem na tela
-    // principal do AquaControl_OS — configuravel no widget/modal proprios. "selecaoSensoresDisplay"
-    // e so a config (sensorId + posicao); os VALORES ao vivo vem de "dadosSensores" (ja
-    // buscado acima pro Esquematico dos Sensores) — o widget/modal combinam os dois.
-    const [selecaoSensoresDisplay, setSelecaoSensoresDisplay] = useState([]);
-    const [modalConfigurarSensoresAberto, setModalConfigurarSensoresAberto] = useState(false);
 
     // Central de Relatorios e Analises (17-espc) — modal full-screen proprio, sem estado
     // nenhum vindo de fora (busca os 4 relatorios sozinho quando abre, ver
@@ -379,16 +453,6 @@ export default function Dashboard() {
     // modo panico. So sai daqui com "Normalizar".
     const [modoPanico, setModoPanico] = useState(false);
 
-    // Históricos gerados uma única vez (não a cada render) — 4 conjuntos: água/ambiente x 24h/30d
-    const dados24h = useRef({
-        agua: gerarHistoricoTemperatura(24.5, 1.2),
-        ambiente: gerarHistoricoTemperatura(23, 1.8),
-    }).current;
-    const dados30d = useRef({
-        agua: gerarHistoricoMensal(24.5, 1.5),
-        ambiente: gerarHistoricoMensal(23, 2.2),
-    }).current;
-
     // Módulo alvo pra tudo que fala com o hardware real de relés (mapeamento de portas E
     // acionamento) — o primeiro cadastrado do tipo "atuador". Ainda não existe um seletor
     // explícito de "qual módulo é a Central do Aquário"; essa é a simplificação assumida
@@ -398,10 +462,14 @@ export default function Dashboard() {
     // moduloAtuador acima (primeiro cadastrado do tipo).
     const moduloSensor = modulos.find((m) => m.tipo === 'telemetria') ?? null;
 
+    // "local-N" (nao so N) pra nunca colidir como key do React com as entradas vindas do
+    // backend (31-espc, ver useEffect de polling abaixo) — essas usam "srv-{id do banco}",
+    // e o id autoincrement do SQLite tambem comeca em 1, entao um "1" puro dos dois lados
+    // colidiria de verdade.
     const registrarLog = useCallback((mensagem, nivel = 'info') => {
         setLogs((atual) => {
             const entrada = {
-                id: proximoIdLog++,
+                id: `local-${proximoIdLog++}`,
                 hora: new Date().toLocaleTimeString('pt-BR', { hour12: false }),
                 mensagem,
                 nivel,
@@ -409,6 +477,76 @@ export default function Dashboard() {
             return [...atual.slice(-49), entrada]; // mantém só as últimas 50 linhas
         });
     }, []);
+
+    // Formata o "criado_em" do backend (DATETIME UTC do SQLite, ex.: "2026-08-04 12:34:56")
+    // pro mesmo formato hh:mm:ss local usado pelas entradas geradas no proprio navegador.
+    function formatarHoraServidor(criadoEm) {
+        return new Date(`${criadoEm.replace(' ', 'T')}Z`).toLocaleTimeString('pt-BR', { hour12: false });
+    }
+
+    // System Log persistido (31-espc): carrega o historico do banco uma vez ao montar (é o
+    // que faz o log sobreviver a um F5 — antes tudo se perdia, só existia em memória) e
+    // depois faz polling pra pegar eventos novos gerados sem ninguem olhando o dashboard
+    // (rele automatico, queda/retorno de conexao de modulo, diagnostico agendado de hora em
+    // hora). Mescla no MESMO array "logs" das entradas locais — dedupe por id (prefixo
+    // "srv-") comparado contra o que já está na tela, então repetir o poll não duplica nada.
+    // 32-espc: GET /api/logs agora devolve {registros, totalFiltrado, ...} (não mais um
+    // array puro) — só "registros" interessa aqui, o resto (paginação/contadores) é só usado
+    // pela pagina completa (ModalLogsCompleto.jsx).
+    useEffect(() => {
+        fetch('/api/logs?limite=100')
+            .then((resposta) => resposta.json())
+            .then((dados) => {
+                const entradas = (dados.registros ?? [])
+                    .slice()
+                    .reverse() // API devolve mais recente primeiro; aqui a ordem de exibição é cronológica
+                    .map((linha) => ({
+                        id: `srv-${linha.id}`,
+                        hora: formatarHoraServidor(linha.criado_em),
+                        mensagem: linha.mensagem,
+                        nivel: linha.nivel,
+                        diagnosticoId: linha.diagnostico_id ?? null,
+                    }));
+                setLogs((atual) => [...entradas, ...atual].slice(-49));
+            })
+            .catch(() => {});
+
+        const intervalo = setInterval(() => {
+            fetch('/api/logs?limite=20')
+                .then((resposta) => resposta.json())
+                .then((dados) => {
+                    setLogs((atual) => {
+                        const idsConhecidos = new Set(atual.map((e) => e.id));
+                        const novas = (dados.registros ?? [])
+                            .slice()
+                            .reverse()
+                            .map((linha) => ({
+                                id: `srv-${linha.id}`,
+                                hora: formatarHoraServidor(linha.criado_em),
+                                mensagem: linha.mensagem,
+                                nivel: linha.nivel,
+                                diagnosticoId: linha.diagnostico_id ?? null,
+                            }))
+                            .filter((entrada) => !idsConhecidos.has(entrada.id));
+                        return novas.length > 0 ? [...atual, ...novas].slice(-49) : atual;
+                    });
+                })
+                .catch(() => {});
+        }, 5000);
+        return () => clearInterval(intervalo);
+    }, []);
+
+    // Modal de Detalhe do Diagnostico (31-espc) — aberta ao clicar numa linha clicavel do
+    // System Log (ver TerminalLogs.jsx/ModalDetalheDiagnostico.jsx).
+    const [diagnosticoAbertoId, setDiagnosticoAbertoId] = useState(null);
+
+    // Pagina completa de Logs (32-espc) — aberta pelo botao "[Ver Tudo]" no cabeçalho do
+    // widget compacto (ver ModalLogsCompleto.jsx).
+    const [modalLogsCompletoAberto, setModalLogsCompletoAberto] = useState(false);
+
+    // Gestao de Fauna (35-espc) — CRUD dos moradores exibidos na Aba "Moradores" da Pagina de
+    // Visitante (ver ModalGestaoFauna.jsx).
+    const [modalGestaoFaunaAberto, setModalGestaoFaunaAberto] = useState(false);
 
     // Busca a lista de módulos e, de quebra, mede a latência real do round-trip — não é
     // simulado, é o tempo de resposta de verdade do fetch a /api/modulos.
@@ -428,16 +566,6 @@ export default function Dashboard() {
         } finally {
             setCarregandoModulos(false);
         }
-    }, []);
-
-    // Selecao de Sensores no Display (16-espc) — busca uma vez no boot do dashboard; so muda
-    // de novo quando o proprio ModalConfigurarSensoresDisplay salva (ver onSalvo abaixo),
-    // nao precisa de polling (ninguem mais escreve nessa tabela).
-    useEffect(() => {
-        fetch('/api/config-display-sensores')
-            .then((resposta) => resposta.json())
-            .then(setSelecaoSensoresDisplay)
-            .catch(() => {});
     }, []);
 
     useEffect(() => {
@@ -494,15 +622,6 @@ export default function Dashboard() {
         };
     }, []);
 
-    // Umidade do ar ainda não vem de um sensor real — oscila levemente pra parecer "viva"
-    // (mesmo espírito do simulador do AquaControl_Hardware: pequenas variações periódicas).
-    useEffect(() => {
-        const intervalo = setInterval(() => {
-            setUmidadeAr((atual) => Math.min(95, Math.max(25, Math.round(atual + (Math.random() - 0.5) * 6))));
-        }, 15000);
-        return () => clearInterval(intervalo);
-    }, []);
-
     // Consulta periódica do estado real dos 16 relés (01-espc-geral/07_...), via
     // GET /api/modulos/:id/reles (o Brain fala com o ESP32 de verdade). Sem módulo atuador
     // cadastrado, nem tenta — fica em "modo demo" (estadoReles = null).
@@ -541,9 +660,9 @@ export default function Dashboard() {
     // mesmo padrao do polling de estadoReles acima, so que pro modulo de telemetria. Sem
     // modulo de telemetria cadastrado, nem tenta (dadosSensores = null). "forcarAtualizacaoSensores"
     // e so um contador que nao serve pra mais nada alem de disparar o efeito de novo fora do
-    // intervalo normal de 5s — usado pelo ModalConfigurarSensoresDisplay logo apos salvar nomes
-    // personalizados, pra refletir na hora em todo lugar (widget, diagrama, esquematico) em vez
-    // de esperar ate 5s pelo proximo poll.
+    // intervalo normal de 5s — usado pelo ModalEditarModulo (secao "Mapeamento e Nome dos
+    // Sensores") logo apos salvar nomes personalizados, pra refletir na hora em todo lugar
+    // (widget, diagrama, esquematico) em vez de esperar ate 5s pelo proximo poll.
     const [forcarAtualizacaoSensores, setForcarAtualizacaoSensores] = useState(0);
     useEffect(() => {
         if (!moduloSensor) {
@@ -1138,6 +1257,34 @@ export default function Dashboard() {
         localStorage.setItem(CHAVE_LOCALSTORAGE_LAYOUT_COMPACTO, JSON.stringify(layoutCompacto));
     }, [layoutCompacto]);
 
+    useEffect(() => {
+        localStorage.setItem(CHAVE_LOCALSTORAGE_LAYOUT_MOBILE, JSON.stringify(layoutMobile));
+    }, [layoutMobile]);
+
+    useEffect(() => {
+        localStorage.setItem(CHAVE_LOCALSTORAGE_VISIBILIDADE_MOBILE, JSON.stringify(visibilidadeWidgetsMobile));
+    }, [visibilidadeWidgetsMobile]);
+
+    // Reordena um widget na lista PLANA do celular (botoes subir/descer, ver
+    // ModalConfiguracoesCelular.jsx) — "direcao" e -1 (sobe) ou +1 (desce); sem efeito nas
+    // pontas (ja bloqueado pelo "disabled" dos botoes, mas confere de novo aqui por
+    // segurança).
+    function moverWidgetMobile(chave, direcao) {
+        setLayoutMobile((atual) => {
+            const indice = atual.indexOf(chave);
+            const novoIndice = indice + direcao;
+            if (indice === -1 || novoIndice < 0 || novoIndice >= atual.length) return atual;
+
+            const copia = [...atual];
+            [copia[indice], copia[novoIndice]] = [copia[novoIndice], copia[indice]];
+            return copia;
+        });
+    }
+
+    function alternarWidgetMobile(chave) {
+        setVisibilidadeWidgetsMobile((atual) => ({ ...atual, [chave]: !atual[chave] }));
+    }
+
     // Central do Aquario (13/14-espc): só as portas MAPEADAS (nome preenchido) — nada de
     // mock. "filtroEquipamentos" decide se mostra as habilitadas (default, "ativos") ou as
     // desabilitadas ("bloqueados", só visibilidade — ver PainelEquipamentos.jsx). Status vem
@@ -1163,18 +1310,29 @@ export default function Dashboard() {
         });
 
     // Parametros Vitais com dado REAL (16-espc) quando o modulo de telemetria tiver o sensor
-    // fisico correspondente conectado — cai pro mock (dados24h/umidadeAr simulado) sensor a
-    // sensor, nao tudo-ou-nada: hoje so o DHT11 (temp_ar/umidade_ar) esta ligado de verdade,
-    // os 3 DS18B20 (temp_agua) ainda nao, entao "AGUA" continua mock ate um deles conectar,
-    // enquanto "AMBIENTE"/"UMIDADE DO AR" ja usam leitura real.
+    // fisico correspondente conectado — 30-espc: o fallback pra mock (dados24h/umidadeAr
+    // simulado) foi REMOVIDO. Antes, um sensor desconectado de verdade (ex.: DHT11 caiu)
+    // fazia este widget mostrar silenciosamente um numero falso "plausivel" em vez de admitir
+    // a desconexao, o que divergia do Esquematico dos Sensores e do widget "Sensores do
+    // Sistema" (ambos honestos, sem mock) sempre que o sensor real estivesse fora do ar —
+    // exatamente o sintoma relatado ("Umidade aparece online aqui mas offline noutro
+    // widget"). Agora os 3 (Parametros Vitais, Esquematico, Sensores do Sistema) leem o
+    // MESMO estado sem nenhuma logica de mock proprio — sensor desconectado = "--" em todo
+    // lugar, sem excecao.
     const sensoresReais = dadosSensores?.disponivel ? dadosSensores.sensores : [];
-    const sensorAguaReal = sensoresReais.find((s) => s.id.startsWith('temp_agua') && s.conectado);
+    // Agua e a MEDIA de todos os DS18B20 conectados agora (podem ser 2, 3 ou mais — o usuario
+    // pode ter varios sensores em posicoes diferentes do aquario, ex.: "Fundo"/"Superficie"),
+    // nao so o primeiro encontrado — calculo centralizado em utils/sensores.js (29-espc: antes
+    // inline aqui, agora tambem reaproveitado pelo widget "Sensores do Sistema" logo abaixo,
+    // pra nunca ter dois lugares calculando "a temperatura da agua" de jeitos diferentes; ja
+    // desconsidera leituras implausiveis tipo -127°C de erro de barramento 1-Wire).
+    const mediaAguaReal = calcularMediaTemperaturaAgua(sensoresReais);
     const sensorAmbienteReal = sensoresReais.find((s) => s.id === 'temp_ar' && s.conectado);
     const sensorUmidadeReal = sensoresReais.find((s) => s.id === 'umidade_ar' && s.conectado);
 
-    const valorAguaAtual = sensorAguaReal ? sensorAguaReal.valor : dados24h.agua[dados24h.agua.length - 1].valor;
-    const valorAmbienteAtual = sensorAmbienteReal ? sensorAmbienteReal.valor : dados24h.ambiente[dados24h.ambiente.length - 1].valor;
-    const umidadeArExibida = sensorUmidadeReal ? sensorUmidadeReal.valor : umidadeAr;
+    const valorAguaAtual = mediaAguaReal;
+    const valorAmbienteAtual = sensorAmbienteReal ? sensorAmbienteReal.valor : null;
+    const umidadeArExibida = sensorUmidadeReal ? sensorUmidadeReal.valor : null;
 
     // Vazao de agua (24-espc) — "ativa" so quando o fluxometro esta CONECTADO e reportando
     // fluxo>0 (bomba ligada de verdade agora, nao so sensor presente). Quando para (bomba
@@ -1204,6 +1362,47 @@ export default function Dashboard() {
           }
         : null;
 
+    // Nivel de Agua (27-espc) — sensor analogico continuo (0-100%), sempre "conectado" (ver
+    // firmware) enquanto o modulo de telemetria estiver acessivel. Nao precisa do tratamento
+    // de "ultima leitura conhecida" da vazao — nao existe um estado "parado" equivalente pra
+    // este sensor, ele sempre devolve uma leitura, mesmo com o reservatorio vazio.
+    const sensorNivelAguaReal = sensoresReais.find((s) => s.id === 'nivel_agua' && s.conectado);
+    const nivelAguaPercentual = sensorNivelAguaReal ? Number(sensorNivelAguaReal.valor) : null;
+
+    // Deteccao de Vazamento (27-espc) — booleano simples, sem "ultima leitura conhecida": um
+    // vazamento so importa AGORA, nao faz sentido "congelar" um alerta de um vazamento que ja
+    // passou so porque o sensor ficou momentaneamente inacessivel.
+    const sensorVazamentoReal = sensoresReais.find((s) => s.id === 'vazamento');
+    const vazamentoDetectado = !!(sensorVazamentoReal?.conectado && sensorVazamentoReal.valor);
+
+    // Segundo Fluxo de Agua (27-espc) — MESMO tratamento de "ativo agora" + "ultima leitura
+    // conhecida" do fluxo principal acima, em estado PROPRIO (nao reaproveita o do canal 1).
+    const sensorFluxo2Real = sensoresReais.find((s) => s.id === 'fluxo_agua_2');
+    const vazao2AtivaAgora = !!(sensorFluxo2Real?.conectado && Number(sensorFluxo2Real.valor) > 0);
+    const vazao2AtualLMin = sensorFluxo2Real?.conectado ? Number(sensorFluxo2Real.valor) : null;
+
+    const [ultimaVazao2AtivaLMin, setUltimaVazao2AtivaLMin] = useState(null);
+    useEffect(() => {
+        if (vazao2AtivaAgora && vazao2AtualLMin !== null && !Number.isNaN(vazao2AtualLMin)) {
+            setUltimaVazao2AtivaLMin(vazao2AtualLMin);
+        }
+    }, [vazao2AtivaAgora, vazao2AtualLMin]);
+
+    const vazao2LMinExibida = vazao2AtivaAgora ? vazao2AtualLMin : ultimaVazao2AtivaLMin;
+    const vazao2Exibida = sensorFluxo2Real
+        ? {
+              valorLh: vazao2LMinExibida !== null ? vazao2LMinExibida * 60 : null,
+              ativa: vazao2AtivaAgora,
+              // 27-espc: ainda nao existe uma calibracao PROPRIA pro segundo canal (a tabela
+              // calibracao_fluxo, 24-espc, cobre so o canal principal) — usa os mesmos
+              // limiares como referencia visual da escala; nenhum alerta e gerado a partir
+              // disso (ver relatoriosService.js).
+              min: calibracaoFluxo.vazaoMinimaLh,
+              max: calibracaoFluxo.vazaoMaximaLh,
+              trocaFiltroLh: calibracaoFluxo.vazaoTrocaFiltroLh,
+          }
+        : null;
+
     // Registro de Widgets (20-espc, layout movivel + Modo Compacto): CADA widget do
     // Dashboard descrito como dado (titulo/icone/resumo/render), nao mais JSX fixo — e o que
     // permite ColunaWidgets.jsx/WidgetSlot.jsx desenharem qualquer um deles de forma
@@ -1215,15 +1414,23 @@ export default function Dashboard() {
         parametrosVitais: {
             titulo: 'Parametros Vitais',
             icone: <Gauge size={20} />,
-            resumo: `${valorAguaAtual.toFixed(1)}°C · ${valorAmbienteAtual.toFixed(1)}°C`,
+            resumo: `${valorAguaAtual !== null ? valorAguaAtual.toFixed(1) : '--'}°C · ${valorAmbienteAtual !== null ? valorAmbienteAtual.toFixed(1) : '--'}°C`,
             render: () => (
-                <PainelParametrosVitais valorAgua={valorAguaAtual} valorAmbiente={valorAmbienteAtual} umidadeAr={umidadeArExibida} vazao={vazaoExibida} />
+                <PainelParametrosVitais
+                    valorAgua={valorAguaAtual}
+                    valorAmbiente={valorAmbienteAtual}
+                    umidadeAr={umidadeArExibida}
+                    vazao={vazaoExibida}
+                    nivelAguaPercentual={nivelAguaPercentual}
+                    vazamentoDetectado={vazamentoDetectado}
+                    vazao2={vazao2Exibida}
+                />
             ),
         },
         historicoTermico: {
             titulo: 'Historico Termico',
             icone: <Thermometer size={20} />,
-            render: () => <GraficoTemperatura dados24h={dados24h} dados30d={dados30d} />,
+            render: () => <GraficoTemperatura dadosSensores={dadosSensores} />,
         },
         centralAquario: {
             titulo: 'Central do Aquario',
@@ -1316,22 +1523,20 @@ export default function Dashboard() {
             render: () => <PainelQrCodes />,
         },
         sensoresDisplay: {
-            titulo: 'Sensores no Display',
+            titulo: 'Sensores do Sistema',
             icone: <Thermometer size={20} />,
-            resumo: `${selecaoSensoresDisplay.length}/6 selecionado(s)`,
-            render: () => (
-                <WidgetSensoresDisplay
-                    selecao={selecaoSensoresDisplay}
-                    dadosSensores={dadosSensores}
-                    onAbrirConfiguracao={() => setModalConfigurarSensoresAberto(true)}
-                />
-            ),
+            resumo: dadosSensores?.disponivel
+                ? `${dadosSensores.sensores.filter((s) => s.conectado).length}/${dadosSensores.sensores.length} online`
+                : null,
+            render: () => <WidgetSensoresSistema dadosSensores={dadosSensores} mediaAgua={mediaAguaReal} />,
         },
         systemLog: {
             titulo: 'System Log',
             icone: <Terminal size={20} />,
             resumo: logs.length > 0 ? `${logs.length} evento(s)` : null,
-            render: () => <TerminalLogs entradas={logs} />,
+            render: () => (
+                <TerminalLogs entradas={logs} onAbrirDiagnostico={setDiagnosticoAbertoId} onAbrirTudo={() => setModalLogsCompletoAberto(true)} />
+            ),
         },
     };
 
@@ -1382,12 +1587,19 @@ export default function Dashboard() {
         { chave: 'agendamentos', rotulo: 'Agendamentos', icone: <CalendarClock size={16} />, onClick: () => setModalListaAgendamentosAberto(true) },
         { chave: 'novo-timer', rotulo: 'Novo Timer', icone: <Timer size={16} />, onClick: abrirNovoTimer },
         { chave: 'esquematico', rotulo: 'Esquematicos', icone: <CircuitBoard size={16} />, onClick: () => setModalSelecionarEsquematicoAberto(true) },
-        { chave: 'sensores-display', rotulo: 'Sensores do Display', icone: <Thermometer size={16} />, onClick: () => setModalConfigurarSensoresAberto(true) },
         { chave: 'relatorios', rotulo: 'Central de Relatorios', icone: <FileBarChart size={16} />, onClick: () => setModalRelatoriosAberto(true) },
         { chave: 'configuracoes', rotulo: 'Configuracoes Globais', icone: <SlidersHorizontal size={16} />, onClick: () => setModalConfiguracoesAberto(true) },
         { chave: 'diagnostico-central', rotulo: 'Central de Diagnostico', icone: <Radar size={16} />, onClick: () => setModalDiagnosticoCentralAberto(true) },
         { chave: 'layout-widgets', rotulo: 'Layout / Widgets', icone: <LayoutGrid size={16} />, onClick: () => setModalWidgetsAberto(true) },
         { chave: 'documentacao', rotulo: 'Documentacao', icone: <BookOpen size={16} />, onClick: () => setModalDocumentacaoAberto(true) },
+        { chave: 'config-celular', rotulo: 'Configuracoes do Celular', icone: <Smartphone size={16} />, onClick: () => setModalConfigCelularAberto(true) },
+        { chave: 'gestao-fauna', rotulo: 'Gestao de Fauna', icone: <Fish size={16} />, onClick: () => setModalGestaoFaunaAberto(true) },
+        // 33-espc: preview da Pagina de Visitante sem perder a propria sessao — ver App.jsx
+        // ("modoVisitantePreview"). Sem "onVerModoVisitante" (app renderizado fora do guard de
+        // autenticacao, cenario que nao deveria acontecer, mas o item so some em vez de quebrar).
+        ...(onVerModoVisitante
+            ? [{ chave: 'ver-modo-visitante', rotulo: 'Ver Modo Visitante', icone: <Eye size={16} />, onClick: onVerModoVisitante }]
+            : []),
     ];
 
     // Entradas do Seletor de Esquematicos (16-espc) — um item por MODULO cadastrado que tem
@@ -1466,39 +1678,58 @@ export default function Dashboard() {
 
             <AlertasConectividade alertas={alertasConectividade} />
 
-            {/* Layout movivel + Modo Compacto (20-espc) — as 3 colunas viram droppables/
-                sortables do dnd-kit; qual widget mora em qual coluna/posicao vem de
-                "layoutWidgets" (persistido), nao mais fixo no JSX. Ver ColunaWidgets.jsx e
-                WidgetSlot.jsx pro que renderiza cada widget de fato. */}
-            <DndContext
-                sensors={sensoresDrag}
-                collisionDetection={closestCenter}
-                onDragStart={aoIniciarArrasto}
-                onDragOver={aoArrastarSobre}
-                onDragEnd={aoFinalizarArrasto}
-            >
-                <div className="dashboard__colunas">
-                    {COLUNAS.map((coluna) => (
-                        <ColunaWidgets
-                            key={coluna}
-                            id={coluna}
-                            chaves={layoutWidgets[coluna]}
-                            registro={registroWidgets}
-                            visibilidade={visibilidadeWidgets}
-                            modoCompacto={modoCompacto}
-                        />
-                    ))}
+            {/* Celular (29-espc): SEM drag-and-drop de proposito — um toque em qualquer parte
+                de um widget (ex.: o botao de um rele) podia comecar um arrasto sem querer,
+                alem do gesto de arrastar ser ruim no toque em geral. Lista plana e ESTATICA
+                (sem DndContext/ColunaWidgets nenhum aqui), ordem/visibilidade vem de
+                "layoutMobile"/"visibilidadeWidgetsMobile" — configuraveis so por botoes de
+                subir/descer em Configuracoes do Celular (ver ModalConfiguracoesCelular.jsx),
+                nunca por arrasto. */}
+            {ehMobile ? (
+                <div className="dashboard__colunas-mobile">
+                    {layoutMobile
+                        .filter((chave) => visibilidadeWidgetsMobile[chave] && registroWidgets[chave])
+                        .map((chave) => (
+                            <div key={chave} className="widget-slot-mobile">
+                                {registroWidgets[chave].render()}
+                            </div>
+                        ))}
                 </div>
+            ) : (
+                /* Desktop/tablet: Layout movivel + Modo Compacto (20-espc) — as 3 colunas viram
+                   droppables/sortables do dnd-kit; qual widget mora em qual coluna/posicao vem
+                   de "layoutWidgets" (persistido), nao mais fixo no JSX. Ver ColunaWidgets.jsx
+                   e WidgetSlot.jsx pro que renderiza cada widget de fato. */
+                <DndContext
+                    sensors={sensoresDrag}
+                    collisionDetection={closestCenter}
+                    onDragStart={aoIniciarArrasto}
+                    onDragOver={aoArrastarSobre}
+                    onDragEnd={aoFinalizarArrasto}
+                >
+                    <div className="dashboard__colunas">
+                        {COLUNAS.map((coluna) => (
+                            <ColunaWidgets
+                                key={coluna}
+                                id={coluna}
+                                chaves={layoutWidgets[coluna]}
+                                registro={registroWidgets}
+                                visibilidade={visibilidadeWidgets}
+                                modoCompacto={modoCompacto}
+                            />
+                        ))}
+                    </div>
 
-                <DragOverlay>
-                    {chaveArrastando && registroWidgets[chaveArrastando] ? (
-                        <div className="widget-slot__overlay">
-                            {registroWidgets[chaveArrastando].icone}
-                            <span>{registroWidgets[chaveArrastando].titulo}</span>
-                        </div>
-                    ) : null}
-                </DragOverlay>
-            </DndContext>
+                    <DragOverlay>
+                        {chaveArrastando && registroWidgets[chaveArrastando] ? (
+                            <div className="widget-slot__overlay">
+                                {registroWidgets[chaveArrastando].icone}
+                                <span>{registroWidgets[chaveArrastando].titulo}</span>
+                            </div>
+                        ) : null}
+                    </DragOverlay>
+                </DndContext>
+            )}
 
             <ModalMapeamentoPortas
                 aberto={modalPortasAberto}
@@ -1526,7 +1757,24 @@ export default function Dashboard() {
                 registrarLog={registrarLog}
             />
 
-            <ModalMenuAcoes aberto={modalMenuAberto} itens={itensMenu} onFechar={() => setModalMenuAberto(false)} />
+            {/* Menu de Acoes: no celular vira um drawer lateral (desliza da esquerda, mais
+                facil de alcancar com o polegar); no desktop/tablet continua o modal
+                centralizado de sempre. MESMOS "itensMenu" nos dois — so a apresentacao
+                muda (ver MenuLateralMobile.jsx). */}
+            {ehMobile ? (
+                <MenuLateralMobile aberto={modalMenuAberto} itens={itensMenu} onFechar={() => setModalMenuAberto(false)} />
+            ) : (
+                <ModalMenuAcoes aberto={modalMenuAberto} itens={itensMenu} onFechar={() => setModalMenuAberto(false)} />
+            )}
+
+            <ModalConfiguracoesCelular
+                aberto={modalConfigCelularAberto}
+                layout={layoutMobile}
+                visibilidade={visibilidadeWidgetsMobile}
+                onAlternarVisibilidade={alternarWidgetMobile}
+                onMover={moverWidgetMobile}
+                onFechar={() => setModalConfigCelularAberto(false)}
+            />
 
             <ModalAgendamento
                 aberto={modalAgendamentoAberto}
@@ -1582,15 +1830,6 @@ export default function Dashboard() {
                 entradas={entradasEsquematicos}
             />
 
-            <ModalConfigurarSensoresDisplay
-                aberto={modalConfigurarSensoresAberto}
-                onFechar={() => setModalConfigurarSensoresAberto(false)}
-                dadosSensores={dadosSensores}
-                selecaoAtual={selecaoSensoresDisplay}
-                onSalvo={setSelecaoSensoresDisplay}
-                onRenomeado={() => setForcarAtualizacaoSensores((v) => v + 1)}
-            />
-
             <ModalCentralRelatorios aberto={modalRelatoriosAberto} onFechar={() => setModalRelatoriosAberto(false)} />
 
             <ModalConfiguracoes
@@ -1609,6 +1848,7 @@ export default function Dashboard() {
                 tema={tema}
                 onAlterarTema={alterarTema}
                 registrarLog={registrarLog}
+                onDesparear={onDesparear}
             />
 
             <ModalCentralDiagnostico
@@ -1620,11 +1860,20 @@ export default function Dashboard() {
                 estadoReles={estadoReles}
                 onAbrirEsquematicoReles={() => setModalEsquematicoAberto(true)}
                 onAbrirEsquematicoSensores={() => setModalEsquematicoSensoresAberto(true)}
-                onAbrirConfigurarSensoresDisplay={() => setModalConfigurarSensoresAberto(true)}
                 onAbrirMapeamentoPortas={() => setModalPortasAberto(true)}
                 onAtualizarModulo={atualizarModuloLocal}
                 registrarLog={registrarLog}
             />
+
+            <ModalDetalheDiagnostico
+                aberto={!!diagnosticoAbertoId}
+                diagnosticoId={diagnosticoAbertoId}
+                onFechar={() => setDiagnosticoAbertoId(null)}
+            />
+
+            <ModalLogsCompleto aberto={modalLogsCompletoAberto} onFechar={() => setModalLogsCompletoAberto(false)} />
+
+            <ModalGestaoFauna aberto={modalGestaoFaunaAberto} onFechar={() => setModalGestaoFaunaAberto(false)} registrarLog={registrarLog} />
 
             <ModalDocumentacao aberto={modalDocumentacaoAberto} onFechar={() => setModalDocumentacaoAberto(false)} />
         </div>

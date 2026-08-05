@@ -18,6 +18,12 @@ const PADRAO = {
     severidade_minima_notificacao: 'aviso',
     silencio_inicio: '',
     silencio_fim: '',
+    // 28-espc: ajuste fino (offset aditivo, °C) aplicado a TODOS os sensores de temperatura
+    // da agua (temp_agua_1/2/3...) antes de qualquer outra coisa consumir a leitura (media em
+    // Parametros Vitais, historico, Display, relatorios) — ver sensoresTelemetriaService.js.
+    // Existe pra calibrar contra um termometro de referencia real, nao pra "corrigir" um
+    // sensor com defeito especifico (o offset e UNICO, aplicado igual a todos os canais).
+    calibracao_temp_agua_offset: '0',
 };
 
 function obterConfiguracoesGerais(req, res) {

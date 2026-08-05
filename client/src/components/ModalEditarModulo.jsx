@@ -12,11 +12,15 @@ import ModalHud from './ModalHud';
 // 16-espc: pra modulos "telemetria", ganha uma secao extra — "Mapeamento e Nome dos Sensores
 // do Modulo" — listando os sensores fisicos do AquaControl_sensor com o Nome Oficial editavel
 // (o "nomePersonalizado" de sensores_personalizados, usado em TODO o dashboard: widget,
-// Diagrama de Sensores, Esquematico). Isso e DIFERENTE do "Nome no Display" configuravel no
-// widget "Sensores no Display" (esse so afeta o que e mandado pro ESP32 fisico) — aqui so o
-// nome geral. Busca o catalogo por conta propria (mesmo padrao de ModalDiagnosticoCompleto.jsx)
-// em vez de depender de props vindas de Dashboard.jsx, pra nao precisar furar
-// ModulosControladores.jsx com mais um prop so pra isso.
+// Diagrama de Sensores, Esquematico). Busca o catalogo por conta propria (mesmo padrao de
+// ModalDiagnosticoCompleto.jsx) em vez de depender de props vindas de Dashboard.jsx, pra nao
+// precisar furar ModulosControladores.jsx com mais um prop so pra isso.
+//
+// 29-espc: o campo "nomeDisplay" (nome PROPRIO pra tela fisica do Display, editavel antes no
+// extinto widget "Sensores no Display") continua sendo preservado ao salvar (nao apagado —
+// ver "salvar" abaixo), mas nao tem mais NENHUMA interface pra edita-lo: a tela principal do
+// AquaControl_OS hoje so mostra 3 arcos fixos com rotulos estaticos (nao le "nome"/"nomeDisplay"
+// de nenhum dispositivo), entao esse campo ficou orfao — nao precisa de UI nova pra ele.
 export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFechar, onSalvo, onRenomeadoSensores, registrarLog }) {
     const [nome, setNome] = useState('');
     const [hostname, setHostname] = useState('');
@@ -210,8 +214,7 @@ export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFecha
                     <div className="modal-editar-modulo__secao-sensores">
                         <span className="hud-tag modal-editar-modulo__secao-titulo">Mapeamento e Nome dos Sensores do Modulo</span>
                         <span className="hud-tag modal-editar-modulo__aviso">
-                            Nome usado em todo o sistema (widget, graficos, historico) — pra mudar so o texto que aparece
-                            na tela fisica do Display, use o widget "Sensores no Display".
+                            Nome usado em todo o sistema (widget, graficos, historico).
                         </span>
 
                         {carregandoSensores && <p className="hud-tag">Consultando sensores...</p>}

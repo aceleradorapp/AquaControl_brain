@@ -165,6 +165,17 @@ function runMigrations(db) {
         );
     `);
 
+    // 04-espc (AquaControl_OS): a tela principal do Display ganhou 2 botões fixos
+    // ("Internet" / "App") que precisam buscar um QR Code ESPECÍFICO cada um, direto — não
+    // dá mais pra depender só de "ativo" (flag global única, modelo "o que estiver marcado
+    // agora", ver comentário acima), já que os dois precisam estar disponíveis AO MESMO
+    // TEMPO. "papel" é opcional e independente de "ativo": no máximo 1 linha com
+    // papel='wifi' e no máximo 1 com papel='app' (garantido no controller, mesmo padrão já
+    // usado pra "ativo"), NULL pra qualquer QR que não esteja associado a nenhum botão fixo.
+    if (!colunaExiste(db, 'qrcodes', 'papel')) {
+        db.exec('ALTER TABLE qrcodes ADD COLUMN papel TEXT;');
+    }
+
     // 09-espc: configurações da tela de descanso (Matrix Core Mode) do Display, hoje fixas
     // em Config.h — passam a viver aqui pra dar pra reajustar sem recompilar/reflashar o
     // firmware. Uma linha só (id fixo 1) porque só existe um Display por enquanto; os
@@ -177,6 +188,14 @@ function runMigrations(db) {
             protecao_info_pausa_ms INTEGER NOT NULL DEFAULT 2000
         );
     `);
+
+    // Cor do Matrix Core Mode (hex "#RRGGBB", mesmo formato do <input type="color"> do
+    // browser) — antes fixa em verde (SCIFI_GREEN) no firmware, agora configuravel junto do
+    // tempo de espera acima. Coluna aditiva (ALTER TABLE) porque "config_display" ja existia
+    // antes desta mudanca.
+    if (!colunaExiste(db, 'config_display', 'cor_protecao_hex')) {
+        db.exec("ALTER TABLE config_display ADD COLUMN cor_protecao_hex TEXT NOT NULL DEFAULT '#00FF41';");
+    }
 
     // 13-espc: histórico de acionamento dos relés — uma linha por PORTA que realmente mudou
     // de estado (não uma linha por comando recebido; um POST /api/reles com 16 posições só
@@ -316,6 +335,141 @@ function runMigrations(db) {
         );
     `);
 
+    // 31-espc: resultado estruturado de UMA execucao do Diagnostico Completo (agendado de
+    // hora em hora, ou manual via Central de Diagnostico) — "detalhes" guarda o JSON inteiro
+    // (banco/modulos/sensores checados naquele momento, ver diagnosticoService.js), pra a
+    // modal de detalhe conseguir reconstruir o checklist completo so com o ID salvo na linha
+    // do System Log correspondente. Criada ANTES de system_logs (referenciada por ela).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS system_diagnostics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            status TEXT NOT NULL,
+            detalhes TEXT NOT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    // 31-espc: System Log persistido — antes o "System Log" do dashboard era 100% em memoria
+    // no navegador (useState, se perdia num refresh) e so registrava acoes clicadas pelo
+    // proprio usuario. Esta tabela e a fonte de verdade nova, escrita pelo BACKEND (nao mais
+    // so pelo front) — cobre eventos que acontecem sem ninguem olhando o dashboard (rele
+    // automatico via termostato/agendamento, queda/retorno de conexao de um modulo, o
+    // diagnostico horario). "diagnostico_id" (FK opcional) e o que torna uma linha de
+    // diagnostico CLICAVEL no front (ver ModalDetalheDiagnostico.jsx) — aponta pra
+    // system_diagnostics.id; NULL em qualquer outro tipo de log.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS system_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nivel TEXT NOT NULL,
+            categoria TEXT NOT NULL,
+            mensagem TEXT NOT NULL,
+            diagnostico_id INTEGER,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (diagnostico_id) REFERENCES system_diagnostics (id) ON DELETE SET NULL
+        );
+    `);
+
+    // 32-espc: "origem" (manual x automatico) — filtro pedido pela pagina /logs. Coluna
+    // ADITIVA (a tabela já existia desde o 31-espc) — NULL em linhas antigas gravadas antes
+    // desta migracao, e em qualquer categoria futura onde "manual vs automatico" nao fizer
+    // sentido nenhum (o filtro so precisa tratar NULL como "nao informado", nao como erro).
+    if (!colunaExiste(db, 'system_logs', 'origem')) {
+        db.exec("ALTER TABLE system_logs ADD COLUMN origem TEXT;");
+    }
+
+    // 32-espc: indices pra pagina /logs continuar rapida com milhares de linhas — "criado_em"
+    // pro filtro de intervalo de data (WHERE criado_em BETWEEN ?), "categoria"/"nivel" pros
+    // filtros de combobox/pills. A ordenacao em si (ORDER BY id DESC) já é de graça — id é a
+    // chave primaria/rowid, não precisa de índice próprio.
+    db.exec('CREATE INDEX IF NOT EXISTS idx_system_logs_criado_em ON system_logs (criado_em);');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_system_logs_categoria ON system_logs (categoria);');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_system_logs_nivel ON system_logs (nivel);');
+
+    // 33-espc: conta(s) ADM (Pareamento Silencioso de Dispositivo) — o PRIMEIRO cadastro
+    // (POST /api/auth/registrar, publico, so funciona uma vez — ver
+    // authService.js:registrarAdmin/existeAdmin) cria a conta inicial; dai em diante, novas
+    // contas so podem ser criadas por quem ja esta autenticado, pela lista de usuarios em
+    // Configuracoes (34-espc, ver authService.js:criarAdminAdicional). "senha_hash" guarda
+    // "sal:hash" (scrypt, ver authService.js) — NUNCA a senha em texto puro. Deliberadamente
+    // FORA de TABELAS_BACKUP (configuracoesGeraisController.js) — um backup/restauracao de
+    // configuracao nao deve carregar hash de senha junto.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS admin_conta (
+            id INTEGER PRIMARY KEY,
+            usuario TEXT NOT NULL,
+            senha_hash TEXT NOT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    // 34-espc: "bloqueado" — desativa o login de UM usuario sem excluir a conta (o
+    // administrador pode reverter depois). Aditiva (a tabela ja existia desde o 33-espc);
+    // linhas antigas (o unico admin ja cadastrado) ganham 0 (ativo) por padrao — ninguem que
+    // ja tinha acesso perde na migracao.
+    if (!colunaExiste(db, 'admin_conta', 'bloqueado')) {
+        db.exec('ALTER TABLE admin_conta ADD COLUMN bloqueado INTEGER NOT NULL DEFAULT 0;');
+    }
+
+    // 35-espc (numeracao real da especificacao e "34", mas esse numero ja foi usado nos
+    // comentarios do modulo multiusuario ADM pedido antes desta espec formal existir — ver
+    // nota em CLAUDE.md/historico da sessao): populacao de peixes/fauna exibida na Aba
+    // "Moradores" da Pagina de Visitante — GET publico, POST/PUT/DELETE exigem o JWT (ver
+    // middlewares/autenticacao.js) por pedido EXPLICITO desta especificacao (diferente do
+    // resto da API de auth, que e so um portao de UI — aqui o proprio spec pediu protecao de
+    // verdade). "imagem_url" opcional — sem ela, o front mostra um placeholder ilustrado (sem
+    // depender de nenhuma URL externa fixa, ver PaginaVisitanteFauna.jsx).
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS fauna (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_comum TEXT NOT NULL,
+            nome_cientifico TEXT,
+            quantidade INTEGER NOT NULL DEFAULT 1,
+            ph_minimo REAL,
+            ph_maximo REAL,
+            temperatura_minima REAL,
+            temperatura_maxima REAL,
+            origem TEXT,
+            comportamento TEXT,
+            imagem_url TEXT,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    // Populacao inicial (35-espc) — so semeia se a tabela estiver vazia, pra nao recriar as
+    // linhas depois que o usuario editar/excluir pelo painel ADM (mesmo espirito idempotente
+    // de outras semeaduras deste arquivo, ex.: migrarFaixasSegurasParaChavesEspecificas acima).
+    const totalFauna = db.prepare('SELECT COUNT(*) AS total FROM fauna').get().total;
+    if (totalFauna === 0) {
+        const inserirFauna = db.prepare(`
+            INSERT INTO fauna (nome_comum, nome_cientifico, quantidade, ph_minimo, ph_maximo, temperatura_minima, temperatura_maxima, origem, comportamento)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        inserirFauna.run(
+            'Cascudo Abacaxi Negro',
+            'Pterygoplichthys pardalis',
+            2,
+            6.5,
+            7.5,
+            22,
+            28,
+            'Bacia Amazônica e rios de água doce da América do Sul',
+            'Bentônico e principalmente noturno — passa o dia abrigado entre troncos e pedras, saindo à noite para raspar algas e restos orgânicos do fundo e da decoração com a boca em ventosa. Pacífico com outras espécies, tolera bem conviver com o morfo albino da mesma espécie.'
+        );
+        inserirFauna.run(
+            'Cascudo Abacaxi Albino',
+            'Pterygoplichthys pardalis (morfo albino)',
+            2,
+            6.5,
+            7.5,
+            22,
+            28,
+            'Morfo albino de criação em cativeiro, a partir da mesma espécie da Bacia Amazônica',
+            'Mesmo comportamento do Cascudo Abacaxi Negro (bentônico, noturno, raspador de algas) — a diferença é só a ausência de pigmentação escura, resultado de uma mutação albina fixada em criação. Sensível a luz muito intensa, aproveita bem os esconderijos entre os troncos de aroeira.'
+        );
+    }
+
     // 16-espc: historico dos 7 sensores reais (AquaControl_sensor), pra relatorios futuros —
     // uma linha por MUDANCA de valor (nao uma linha por ciclo de polling, ver
     // sensoresTelemetriaService.js), senao a tabela cresceria rapido demais sem necessidade
@@ -349,12 +503,14 @@ function runMigrations(db) {
         db.exec('ALTER TABLE historico_sensores ADD COLUMN volume_total_l REAL;');
     }
 
-    // 16-espc: quais sensores (no maximo 6, aplicado no controller) aparecem na tela
-    // principal do Display, e em que ordem/posicao (0-5, cada posicao vira um slot no grid
-    // do firmware) — configuravel no widget "Sensores no Display" do dashboard. Uma linha
-    // por sensor selecionado; UNIQUE(sensor_id) porque cada sensor so pode ocupar 1 posicao.
-    // Sem modulo_id de proposito — mesma simplificacao ja usada em config_display: so existe
-    // um modulo de telemetria e um Display no ecossistema por enquanto.
+    // 16-espc: quais sensores (no maximo 6, aplicado no controller) apareciam na tela
+    // principal do Display, e em que ordem/posicao (0-5, cada posicao virava um slot no grid
+    // do firmware) — configuravel no extinto widget "Sensores no Display" do dashboard.
+    // 29-espc: ORFAO — nenhuma rota/controller le ou escreve mais nesta tabela (a tela
+    // principal do Display virou 3 arcos fixos, sem selecao manual de sensores; ver
+    // telemetriaDisplayService.js). Mantida no schema (nao dropada) so pra nao quebrar um
+    // restore de backup antigo que ainda tenha essa tabela — ver TABELAS_BACKUP em
+    // configuracoesGeraisController.js.
     db.exec(`
         CREATE TABLE IF NOT EXISTS config_display_sensores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

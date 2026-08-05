@@ -19,6 +19,12 @@ export default function RelatorioConsumoAgua({ dados, carregando }) {
         return <EstadoVazioRelatorio titulo="Sem leituras de fluxo no periodo" mensagem="O fluxometro nao registrou leituras no intervalo selecionado." />;
     }
 
+    // 27-espc: "porCanal" e novo — um resumo por sensor de fluxo encontrado no periodo. O
+    // canal principal ("fluxo_agua") ja esta representado pelos KPIs/graficos de cima (raiz
+    // de "dados", mantido por compatibilidade); aqui so procura um SEGUNDO canal pra mostrar
+    // a leitura/grafico dele tambem, sem duplicar consumo total/picos do canal principal.
+    const canal2 = dados.porCanal?.find((c) => c.sensorId === 'fluxo_agua_2' && c.serieVazao.length > 0) ?? null;
+
     function exportarPicos() {
         exportarCsv('picos_vazao', [
             { chave: 'timestamp', rotulo: 'Data/Hora' },
@@ -102,6 +108,34 @@ export default function RelatorioConsumoAgua({ dados, carregando }) {
                     </div>
                 )}
             </div>
+
+            {canal2 && (
+                <>
+                    <div className="relatorio-kpis">
+                        <CartaoKPI titulo="CONSUMO TOTAL — CANAL 2" valor={canal2.kpis.consumoTotalLitros} unidade=" L" cor="#00ff7f" />
+                        <CartaoKPI titulo="VAZAO MEDIA — CANAL 2" valor={canal2.kpis.vazaoMediaAtiva} unidade=" L/min" cor="#00ff7f" />
+                        <CartaoKPI titulo="VAZAO MAXIMA — CANAL 2" valor={canal2.kpis.vazaoMaxima} unidade=" L/min" cor="#00ff7f" />
+                    </div>
+
+                    <div className="hud-painel">
+                        <h3 className="hud-titulo relatorio-subtitulo">Vazao ao Longo do Tempo — Segundo Canal (fluxo_agua_2)</h3>
+                        <ResponsiveContainer width="100%" height={220}>
+                            <LineChart data={canal2.serieVazao} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,240,255,0.08)" vertical={false} />
+                                <XAxis dataKey="timestamp" tickFormatter={formatarHoraCurta} tick={{ fill: '#5f8aa3', fontSize: 10 }} axisLine={{ stroke: '#124059' }} tickLine={false} minTickGap={50} />
+                                <YAxis tick={{ fill: '#5f8aa3', fontSize: 11 }} axisLine={false} tickLine={false} width={34} />
+                                <Tooltip
+                                    contentStyle={{ background: '#071527', border: '1px solid #124059', fontFamily: 'Share Tech Mono, monospace', fontSize: 12 }}
+                                    labelStyle={{ color: '#00ff7f' }}
+                                    labelFormatter={formatarDataHora}
+                                    formatter={(valor) => [`${valor} L/min`, 'Vazao Canal 2']}
+                                />
+                                <Line type="monotone" dataKey="vazao" name="Vazao Canal 2" stroke="#00ff7f" dot={false} strokeWidth={2} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </>
+            )}
         </div>
     );
 }

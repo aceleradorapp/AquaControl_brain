@@ -355,6 +355,7 @@ export default function ModulosControladores({
                 modulo={moduloClicado}
                 diagnostico={statusModulo}
                 onFechar={() => setModalDiagnosticoAberto(false)}
+                registrarLog={registrarLog}
             />
         </>
     );

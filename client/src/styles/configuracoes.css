@@ -121,7 +121,12 @@
     flex-direction: column;
     gap: var(--espaco-sm);
 }
-.config-nota {
+/* Especificidade de 2 classes (0,2,0) de proposito — precisa vencer ".hud-tag" (0,1,0) em
+   hud.css, que forca "white-space: nowrap". Com as duas classes na mesma especificidade
+   (".config-nota" sozinha tambem e 0,1,0), quem ganhava era so a ORDEM de carregamento do
+   CSS — as vezes ".hud-tag" vencia e o texto vazava/cortava em vez de quebrar linha (mesmo
+   bug ja corrigido uma vez em ModalEditarModulo.jsx, ver ".modal-editar-modulo__aviso"). */
+.hud-tag.config-nota {
     display: block;
     white-space: normal;
     line-height: 1.4;
@@ -158,6 +163,13 @@
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+/* Acao destrutiva (33-espc: Desparear Dispositivo) — mesmo verde-primario vira vermelho, sem
+   precisar de uma classe de botao inteira nova. */
+.config-botao-perigo {
+    color: var(--cor-erro) !important;
+    border-color: var(--cor-erro) !important;
 }
 
 .config-toggle {
@@ -198,6 +210,24 @@
 }
 .config-campo-numero .hud-input {
     width: 100px;
+}
+/* Master Key/campos de texto reaproveitando .config-campo-numero (33-espc) — mais largo que
+   um campo numerico comum, senao o texto digitado nao cabe. */
+.config-campo-numero .hud-input[type='text'] {
+    width: 160px;
+}
+
+/* Formulario inline de novo usuario / edicao de usuario (34-espc) — empilhado, mesma largura
+   pros 3 campos, sem precisar de uma modal separada so pra usuario+senha+confirmar. */
+.config-novo-usuario {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--espaco-sm) 0;
+    border-bottom: 1px solid var(--cor-borda);
+}
+.config-novo-usuario .hud-input {
+    width: 100%;
 }
 .config-select {
     min-width: 160px;
@@ -267,4 +297,63 @@
     .config-sidebar__item.ativo {
         border-bottom-color: var(--cor-primaria);
     }
+}
+
+/* --- Preview do Matrix Core Mode (Protecao de Tela do Display) --- */
+.preview-protecao {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin: var(--espaco-sm) 0;
+}
+.preview-protecao__tela {
+    width: 280px;
+    max-width: 100%;
+    aspect-ratio: 4 / 3;
+    background: #000;
+    border: 2px solid var(--cor-borda-forte);
+    border-radius: 4px;
+    box-shadow: var(--glow-cyan-sm);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.preview-protecao__chuva {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px 0;
+}
+.preview-protecao__coluna {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: var(--fonte-mono);
+    font-size: 11px;
+    line-height: 1.35;
+}
+.preview-protecao__rodape {
+    height: 24px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 10px;
+    font-family: var(--fonte-mono);
+    font-size: 10px;
+}
+.preview-protecao__rotulo {
+    color: var(--cor-primaria);
+}
+.preview-protecao__valor {
+    color: var(--cor-laranja);
+}
+.config-seletor-cor {
+    width: 44px;
+    height: 30px;
+    padding: 2px;
+    background: transparent;
+    border: 1px solid var(--cor-borda);
+    cursor: pointer;
 }

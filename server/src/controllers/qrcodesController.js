@@ -62,6 +62,58 @@ function ativarQrcode(req, res) {
     res.json(formatarQrcode(atualizado));
 }
 
+const PAPEIS_VALIDOS = ['wifi', 'app'];
+
+// GET /api/qrcodes/papel/:papel — os botões fixos "Internet"/"App" da tela principal do
+// Display (04-espc) buscam por AQUI, não por "/ativo": os dois precisam de um QR sempre
+// disponível ao mesmo tempo, independente de qual está "ativo" no momento. 404 se nenhum QR
+// tiver esse papel atribuído ainda — o Display trata isso como "nenhum QR cadastrado".
+function obterQrcodePorPapel(req, res) {
+    const { papel } = req.params;
+    if (!PAPEIS_VALIDOS.includes(papel)) {
+        return res.status(400).json({ erro: `Papel invalido: "${papel}". Use um de: ${PAPEIS_VALIDOS.join(', ')}.` });
+    }
+
+    const qrcode = db.prepare('SELECT * FROM qrcodes WHERE papel = ?').get(papel);
+    if (!qrcode) {
+        return res.status(404).json({ erro: `Nenhum QR Code com o papel "${papel}" cadastrado ainda.` });
+    }
+    res.json(formatarQrcode(qrcode));
+}
+
+// PUT /api/qrcodes/:id/papel — atribui (ou remove, se "papel" vier null/vazio) o papel fixo
+// deste QR. Mesma exclusividade de ativarQrcode acima: no máximo 1 QR com cada papel por
+// vez, então atribuir aqui desmarca automaticamente qualquer outro que já tivesse esse
+// mesmo papel (numa transação, mesmo raciocínio do "ativo").
+function atribuirPapelQrcode(req, res) {
+    const { id } = req.params;
+    const papel = req.body.papel || null;
+
+    if (papel !== null && !PAPEIS_VALIDOS.includes(papel)) {
+        return res.status(400).json({ erro: `Papel invalido: "${papel}". Use um de: ${PAPEIS_VALIDOS.join(', ')}, ou null pra remover.` });
+    }
+
+    const qrcode = db.prepare('SELECT * FROM qrcodes WHERE id = ?').get(id);
+    if (!qrcode) {
+        return res.status(404).json({ erro: 'QR Code nao encontrado.' });
+    }
+
+    db.exec('BEGIN');
+    try {
+        if (papel !== null) {
+            db.prepare('UPDATE qrcodes SET papel = NULL WHERE papel = ? AND id != ?').run(papel, id);
+        }
+        db.prepare('UPDATE qrcodes SET papel = ? WHERE id = ?').run(papel, id);
+        db.exec('COMMIT');
+    } catch (erro) {
+        db.exec('ROLLBACK');
+        throw erro;
+    }
+
+    const atualizado = db.prepare('SELECT * FROM qrcodes WHERE id = ?').get(id);
+    res.json(formatarQrcode(atualizado));
+}
+
 // DELETE /api/qrcodes/:id
 function deletarQrcode(req, res) {
     const { id } = req.params;
@@ -72,4 +124,4 @@ function deletarQrcode(req, res) {
     res.status(204).send();
 }
 
-module.exports = { listarQrcodes, obterQrcodeAtivo, criarQrcode, ativarQrcode, deletarQrcode };
+module.exports = { listarQrcodes, obterQrcodeAtivo, criarQrcode, ativarQrcode, deletarQrcode, obterQrcodePorPapel, atribuirPapelQrcode };

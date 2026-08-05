@@ -168,4 +168,65 @@ async function configurarDispositivoEsp(req, res) {
     }
 }
 
-module.exports = { consultarReles, acionarReles, consultarStatusEsp, consultarSensoresEsp, configurarDispositivoEsp };
+// POST /api/modulos/:id/config-protecao — repassa a config da Tela de Descanso (Matrix Core
+// Mode: tempo de espera + cor) pro Display de verdade, via seu POST /api/config-protecao.
+// Usado pelo botao "Enviar ao Display" nas Configuracoes (dashboard) — aplica IMEDIATAMENTE
+// no Display (sem reiniciar), diferente de PUT /api/config-display (configDisplayController.js),
+// que so persiste no Brain pro Display buscar no proximo boot. Mesmo padrao de proxy de
+// configurarDispositivoEsp acima.
+async function configurarProtecaoEsp(req, res) {
+    const { id } = req.params;
+    const modulo = buscarModulo(id);
+
+    if (!modulo) {
+        return res.status(404).json({ erro: 'Modulo nao encontrado.' });
+    }
+
+    try {
+        const resposta = await fetch(`http://${modulo.ip}/api/config-protecao`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        const dados = await resposta.json();
+        if (!resposta.ok) {
+            return res.json({ disponivel: false, motivo: dados.status || `ESP respondeu HTTP ${resposta.status}` });
+        }
+        res.json({ disponivel: true, ...dados });
+    } catch (erro) {
+        res.json({ disponivel: false, motivo: `Nao foi possivel falar com o modulo em ${modulo.ip}: ${erro.message}` });
+    }
+}
+
+// POST /api/modulos/:id/teste-arcos — dispara a varredura de teste dos 3 arcos da tela
+// principal do Display (água/ar/umidade, do mínimo ao máximo, aos poucos — ver
+// uiPonteIniciarTesteArcos no firmware) via seu POST /api/teste-arcos. Usado pelo botão
+// "Testar Sensores no Display" no modal Diagnóstico Completo, pra confirmar visualmente que
+// os arcos/labels respondem a valores reais sem precisar mexer em nenhum sensor físico. Sem
+// corpo (a varredura não recebe parâmetros) — mesmo padrão de proxy de configurarProtecaoEsp
+// acima, só sem repassar `req.body`.
+async function testarArcosEsp(req, res) {
+    const { id } = req.params;
+    const modulo = buscarModulo(id);
+
+    if (!modulo) {
+        return res.status(404).json({ erro: 'Modulo nao encontrado.' });
+    }
+
+    try {
+        const resposta = await fetch(`http://${modulo.ip}/api/teste-arcos`, {
+            method: 'POST',
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        const dados = await resposta.json();
+        if (!resposta.ok) {
+            return res.json({ disponivel: false, motivo: dados.status || `ESP respondeu HTTP ${resposta.status}` });
+        }
+        res.json({ disponivel: true, ...dados });
+    } catch (erro) {
+        res.json({ disponivel: false, motivo: `Nao foi possivel falar com o modulo em ${modulo.ip}: ${erro.message}` });
+    }
+}
+
+module.exports = { consultarReles, acionarReles, consultarStatusEsp, consultarSensoresEsp, configurarDispositivoEsp, configurarProtecaoEsp, testarArcosEsp };

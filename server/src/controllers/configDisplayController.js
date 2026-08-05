@@ -9,6 +9,7 @@ const PADRAO = {
     tempo_espera_protecao_segundos: 120,
     protecao_info_duracao_ms: 5000,
     protecao_info_pausa_ms: 2000,
+    cor_protecao_hex: '#00FF41',
 };
 
 function obterConfigDisplay(req, res) {
@@ -26,15 +27,17 @@ function atualizarConfigDisplay(req, res) {
     const tempo_espera_protecao_segundos = req.body.tempo_espera_protecao_segundos ?? atual.tempo_espera_protecao_segundos;
     const protecao_info_duracao_ms = req.body.protecao_info_duracao_ms ?? atual.protecao_info_duracao_ms;
     const protecao_info_pausa_ms = req.body.protecao_info_pausa_ms ?? atual.protecao_info_pausa_ms;
+    const cor_protecao_hex = req.body.cor_protecao_hex ?? atual.cor_protecao_hex;
 
     db.prepare(
-        `INSERT INTO config_display (id, tempo_espera_protecao_segundos, protecao_info_duracao_ms, protecao_info_pausa_ms)
-         VALUES (1, ?, ?, ?)
+        `INSERT INTO config_display (id, tempo_espera_protecao_segundos, protecao_info_duracao_ms, protecao_info_pausa_ms, cor_protecao_hex)
+         VALUES (1, ?, ?, ?, ?)
          ON CONFLICT (id) DO UPDATE SET
             tempo_espera_protecao_segundos = excluded.tempo_espera_protecao_segundos,
             protecao_info_duracao_ms = excluded.protecao_info_duracao_ms,
-            protecao_info_pausa_ms = excluded.protecao_info_pausa_ms`
-    ).run(tempo_espera_protecao_segundos, protecao_info_duracao_ms, protecao_info_pausa_ms);
+            protecao_info_pausa_ms = excluded.protecao_info_pausa_ms,
+            cor_protecao_hex = excluded.cor_protecao_hex`
+    ).run(tempo_espera_protecao_segundos, protecao_info_duracao_ms, protecao_info_pausa_ms, cor_protecao_hex);
 
     const { id, ...config } = db.prepare('SELECT * FROM config_display WHERE id = 1').get();
     res.json(config);

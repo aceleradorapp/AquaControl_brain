@@ -5,7 +5,7 @@ import { formatarDataHora, formatarHoraCurta } from '../utils/formatoRelatorio';
 import { exportarCsv } from '../utils/exportarRelatorio';
 import { Download } from 'lucide-react';
 
-const CORES = { agua1: '#07ffff', agua2: '#00b8d9', agua3: '#0088a3', ar: '#ff9800', umidade: '#00ff7f', ph: '#ffbe00' };
+const CORES = { agua1: '#07ffff', agua2: '#00b8d9', agua3: '#0088a3', ar: '#ff9800', umidade: '#00ff7f', ph: '#ffbe00', nivel: '#249fff' };
 
 function textoResumo(resumo, unidade) {
     if (!resumo) return null;
@@ -15,7 +15,7 @@ function textoResumo(resumo, unidade) {
 // Aba 1 (17-espc): Temperatura da agua (3x DS18B20) vs Temperatura/Umidade do ar (DHT11) num
 // grafico multivariado, tendencia de pH com faixa ideal destacada, tabela de anomalias
 // (leituras fora da faixa segura — configuravel em Configuracoes -> Sensores & Telemetria).
-export default function RelatorioTelemetria({ dados, carregando }) {
+export default function RelatorioTelemetria({ dados, carregando, nomesSensores = {} }) {
     if (carregando) return <p className="hud-tag">Carregando relatorio...</p>;
 
     if (!dados?.disponivel) {
@@ -46,12 +46,14 @@ export default function RelatorioTelemetria({ dados, carregando }) {
                 <CartaoKPI titulo="TEMP. AR (MEDIA)" valor={dados.kpis.temperaturaAr?.media ?? null} unidade="°C" cor={CORES.ar} />
                 <CartaoKPI titulo="UMIDADE DO AR (MEDIA)" valor={dados.kpis.umidadeAr?.media ?? null} unidade="%" cor={CORES.umidade} />
                 <CartaoKPI titulo="PH (MEDIO)" valor={dados.kpis.ph?.media ?? null} cor={CORES.ph} />
+                <CartaoKPI titulo="NIVEL AGUA (MEDIO)" valor={dados.kpis.nivelAgua?.media ?? null} unidade="%" cor={CORES.nivel} />
                 <CartaoKPI titulo="ESTABILIDADE" valor={dados.kpis.estabilidade} unidade="%" cor="var(--cor-sucesso)" />
             </div>
             <div className="relatorio-kpis__legenda">
                 {dados.kpis.temperaturaAgua && <span className="hud-tag">Agua: {textoResumo(dados.kpis.temperaturaAgua, '°C')}</span>}
                 {dados.kpis.temperaturaAr && <span className="hud-tag">Ar: {textoResumo(dados.kpis.temperaturaAr, '°C')}</span>}
                 {dados.kpis.ph && <span className="hud-tag">pH: {textoResumo(dados.kpis.ph, '')}</span>}
+                {dados.kpis.nivelAgua && <span className="hud-tag">Nivel: {textoResumo(dados.kpis.nivelAgua, '%')}</span>}
             </div>
 
             <div className="hud-painel">
@@ -68,9 +70,9 @@ export default function RelatorioTelemetria({ dados, carregando }) {
                             labelFormatter={formatarDataHora}
                         />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Line yAxisId="temp" type="monotone" dataKey="temp_agua_1" name="Agua 1" stroke={CORES.agua1} dot={false} connectNulls strokeWidth={2} />
-                        <Line yAxisId="temp" type="monotone" dataKey="temp_agua_2" name="Agua 2" stroke={CORES.agua2} dot={false} connectNulls strokeWidth={2} />
-                        <Line yAxisId="temp" type="monotone" dataKey="temp_agua_3" name="Agua 3" stroke={CORES.agua3} dot={false} connectNulls strokeWidth={2} />
+                        <Line yAxisId="temp" type="monotone" dataKey="temp_agua_1" name={nomesSensores.temp_agua_1 ?? 'Agua 1'} stroke={CORES.agua1} dot={false} connectNulls strokeWidth={2} />
+                        <Line yAxisId="temp" type="monotone" dataKey="temp_agua_2" name={nomesSensores.temp_agua_2 ?? 'Agua 2'} stroke={CORES.agua2} dot={false} connectNulls strokeWidth={2} />
+                        <Line yAxisId="temp" type="monotone" dataKey="temp_agua_3" name={nomesSensores.temp_agua_3 ?? 'Agua 3'} stroke={CORES.agua3} dot={false} connectNulls strokeWidth={2} />
                         <Line yAxisId="temp" type="monotone" dataKey="temp_ar" name="Ar" stroke={CORES.ar} dot={false} connectNulls strokeWidth={2} />
                         <Line yAxisId="umid" type="monotone" dataKey="umidade_ar" name="Umidade %" stroke={CORES.umidade} dot={false} connectNulls strokeWidth={2} strokeDasharray="4 3" />
                     </LineChart>

@@ -3,7 +3,6 @@ const modulosRoutes = require('./modulosRoutes');
 const qrcodesRoutes = require('./qrcodesRoutes');
 const panicoRoutes = require('./panicoRoutes');
 const configDisplayRoutes = require('./configDisplayRoutes');
-const { obterConfigDisplaySensores, salvarConfigDisplaySensores } = require('../controllers/configDisplaySensoresController');
 const { obterPersonalizacoes, salvarPersonalizacoes } = require('../controllers/sensoresPersonalizadosController');
 const temasRoutes = require('./temasRoutes');
 const agendamentosRoutes = require('./agendamentosRoutes');
@@ -12,6 +11,23 @@ const { listarDispositivosAtuais } = require('../controllers/dispositivosControl
 const { obterHistoricoReles } = require('../controllers/historicoRelesController');
 const relatoriosRoutes = require('./relatoriosRoutes');
 const configuracoesRoutes = require('./configuracoesRoutes');
+const { obterLogs } = require('../controllers/logsController');
+const { obterDiagnosticoPorId, executarDiagnosticoManual } = require('../controllers/diagnosticosController');
+const {
+    status: statusAuth,
+    registrar: registrarAuth,
+    login: loginAuth,
+    verificar: verificarAuth,
+    validarMasterKeyRota,
+    obterConfiguracoesAuth,
+    salvarConfiguracoesAuth,
+    listarUsuarios,
+    criarUsuario,
+    editarUsuario,
+    excluirUsuario,
+} = require('../controllers/authController');
+const { listarFauna, criarFauna, editarFauna, excluirFauna } = require('../controllers/faunaController');
+const { exigirAutenticacao } = require('../middlewares/autenticacao');
 
 const router = express.Router();
 
@@ -20,10 +36,12 @@ router.use('/qrcodes', qrcodesRoutes);
 router.use('/panico', panicoRoutes);
 router.use('/config-display', configDisplayRoutes);
 
-// 16-espc: quais sensores (max 6) aparecem na tela principal do Display, e em que ordem —
-// ver ConfigDisplaySensoresController.js e o widget "Sensores no Display" no dashboard.
-router.get('/config-display-sensores', obterConfigDisplaySensores);
-router.put('/config-display-sensores', salvarConfigDisplaySensores);
+// 29-espc: a rota "/config-display-sensores" (selecao de quais sensores, no maximo 6,
+// apareciam na tela do Display) foi removida — o AquaControl_OS nao gerencia mais uma
+// selecao individual de exibicao (ver telemetriaDisplayService.js), e o widget do dashboard
+// que a configurava virou "Sensores do Sistema", uma listagem automatica sem selecao manual.
+// A tabela "config_display_sensores" continua no schema (nao foi dropada, so parou de ser
+// escrita/lida por qualquer rota) — ver server/src/database/migrate.js.
 
 // 16-espc: nomes personalizados por sensor (geral + "só pro Display") — ver
 // sensoresPersonalizadosController.js.
@@ -47,5 +65,39 @@ router.use('/relatorios', relatoriosRoutes);
 // Configuracoes Globais do Sistema (19-espc) — ver configuracoesGeraisController.js/
 // equipamentosAutomacaoController.js/automacaoEquipamentosService.js.
 router.use('/configuracoes', configuracoesRoutes);
+
+// System Log persistido + Diagnostico Completo agendado/manual (31-espc) — ver
+// logService.js/diagnosticoService.js. "/diagnostics/executar" precisa vir ANTES de
+// "/diagnostics/:id", senao o Express tentaria casar "executar" como um :id.
+router.get('/logs', obterLogs);
+router.post('/diagnostics/executar', executarDiagnosticoManual);
+router.get('/diagnostics/:id', obterDiagnosticoPorId);
+
+// Autenticacao por Dispositivo / Modo Visitante (33-espc) — ver authService.js/
+// authController.js. NAO protege nenhuma outra rota desta lista (decisao explicita: so
+// controla qual TELA o front mostra, nao um middleware de autorizacao de verdade ainda).
+router.get('/auth/status', statusAuth);
+router.post('/auth/registrar', registrarAuth);
+router.post('/auth/login', loginAuth);
+router.get('/auth/verificar', verificarAuth);
+router.post('/auth/master-key', validarMasterKeyRota);
+router.get('/auth/configuracoes', obterConfiguracoesAuth);
+router.put('/auth/configuracoes', salvarConfiguracoesAuth);
+
+// Gerenciamento de usuarios ADM (34-espc) — listar/criar/editar/bloquear/excluir. MESMA
+// ressalva de cima: sem middleware de autorizacao ainda, quem souber a URL consegue chamar
+// direto (decisao ja tomada no 33-espc, mantida aqui por consistencia).
+router.get('/auth/usuarios', listarUsuarios);
+router.post('/auth/usuarios', criarUsuario);
+router.put('/auth/usuarios/:id', editarUsuario);
+router.delete('/auth/usuarios/:id', excluirUsuario);
+
+// Gestao de Fauna (35-espc, especificacao numerada como "34") — GET publico (Aba "Moradores"
+// da Pagina de Visitante), escrita protegida por JWT (pedido EXPLICITO desta especificacao —
+// ver middlewares/autenticacao.js, a PRIMEIRA protecao de verdade deste projeto).
+router.get('/fauna', listarFauna);
+router.post('/fauna', exigirAutenticacao, criarFauna);
+router.put('/fauna/:id', exigirAutenticacao, editarFauna);
+router.delete('/fauna/:id', exigirAutenticacao, excluirFauna);
 
 module.exports = router;

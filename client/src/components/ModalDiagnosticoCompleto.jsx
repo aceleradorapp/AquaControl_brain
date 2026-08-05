@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Cpu } from 'lucide-react';
+import { Cpu, Radar } from 'lucide-react';
 import ModalInfo from './ModalInfo';
 import { ICONES_SENSOR, formatarValorSensor } from '../utils/sensores';
 
@@ -12,12 +12,11 @@ import { ICONES_SENSOR, formatarValorSensor } from '../utils/sensores';
 
 // Nomes legiveis pro enum "Telas" do AquaControl_OS (src/main.cpp) — a ORDEM aqui precisa
 // bater exatamente com a ordem do enum la, ja que "tela_atual" e so o indice numerico.
+// 07-espc: corrigido pra bater com o enum atual (a navegacao foi bastante simplificada desde
+// a versao anterior deste array — Menu/Submenu/Temas/QR Code nao sao mais estados de
+// "modoTela" separados, so a Tela de Lista de QR Codes vive dentro do mundo LVGL da HUD).
 const NOMES_TELAS_DISPLAY = [
     'HUD Principal',
-    'Menu de Navegacao',
-    'Submenu (Iluminacao/Filtragem/Config)',
-    'Temas',
-    'QR Code',
     'Protecao (Matrix Core Mode)',
     'Alerta (Modo Panico)',
     'Sem Conexao (Wi-Fi perdido)',
@@ -59,12 +58,34 @@ function Linha({ rotulo, valor }) {
     );
 }
 
-export default function ModalDiagnosticoCompleto({ aberto, modulo, diagnostico, onFechar }) {
+export default function ModalDiagnosticoCompleto({ aberto, modulo, diagnostico, onFechar, registrarLog }) {
     // Diagrama de Sensores busca sua propria fonte (GET /api/modulos/:id/sensores, proxy pro
     // GET /api/sensores do proprio ESP32) — dado que nao vem de "diagnostico" (esse e so o
     // GET /api/status). So dispara pra modulos "telemetria" e só enquanto o modal estiver aberto.
     const [sensores, setSensores] = useState(null);
     const [carregandoSensores, setCarregandoSensores] = useState(false);
+
+    // Botao de teste dos arcos (07-espc): dispara POST /api/modulos/:id/teste-arcos (proxy pro
+    // POST /api/teste-arcos do proprio Display) — mesmo padrao de "reenviarHandshake" em
+    // ModalEditarModulo.jsx (estado de loading local + registrarLog pro sucesso/erro, sem
+    // guardar resultado nenhum aqui: o efeito e visivel no proprio Display, nao nesta tela).
+    const [testandoArcos, setTestandoArcos] = useState(false);
+
+    async function testarArcos() {
+        setTestandoArcos(true);
+        try {
+            const resposta = await fetch(`/api/modulos/${modulo.id}/teste-arcos`, { method: 'POST' });
+            const dados = await resposta.json();
+            if (!resposta.ok || !dados.disponivel) {
+                throw new Error(dados.motivo ?? dados.erro ?? 'Falha ao contatar o Display.');
+            }
+            registrarLog?.(`Teste dos arcos iniciado no Display "${modulo.nome}" — acompanhe a tela do aparelho.`, 'sucesso');
+        } catch (erro) {
+            registrarLog?.(`Falha ao iniciar o teste dos arcos: ${erro.message}`, 'erro');
+        } finally {
+            setTestandoArcos(false);
+        }
+    }
 
     useEffect(() => {
         if (!aberto || modulo?.tipo !== 'telemetria') {
@@ -150,6 +171,15 @@ export default function ModalDiagnosticoCompleto({ aberto, modulo, diagnostico, 
                     {modulo?.tipo === 'display' && (
                         <Secao titulo="Especifico deste Modulo">
                             <Linha rotulo="Tela Atual" valor={NOMES_TELAS_DISPLAY[diagnostico.tela_atual] ?? `#${diagnostico.tela_atual}`} />
+                            <button
+                                className="botao-primario diagnostico-completo__botao-teste-arcos"
+                                type="button"
+                                onClick={testarArcos}
+                                disabled={testandoArcos}
+                            >
+                                <Radar size={14} />
+                                {testandoArcos ? 'Iniciando...' : 'Testar Sensores no Display'}
+                            </button>
                         </Secao>
                     )}
 

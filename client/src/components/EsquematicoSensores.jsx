@@ -2,21 +2,28 @@ import ModalHud from './ModalHud';
 import { formatarValorSensor } from '../utils/sensores';
 import '../styles/esquematico.css';
 
-// Esquematico dos Sensores (16-espc, AquaControl_sensor) — mesmo espirito visual do
-// Esquematico Interativo dos reles (EsquematicoInterativo.jsx: ESP32 + fios ortogonais +
-// blocos de status), mas SEM interatividade de clique (sensores sao so leitura, nao tem o
-// que "acionar") e SEM a coluna intermediaria de modulo (o sensor liga direto no GPIO do
-// ESP32, nao existe um MCP23017/rele no meio). 7 blocos = os 7 sensores fisicos da
-// especificacao (01-espc-geral/16_esquema_ligacao_sensores.md); o DHT11 é UM sensor fisico
-// só (2 valores, temp+umidade), por isso vira um bloco só, não dois.
+// Esquematico dos Sensores (16-espc, AquaControl_sensor; expandido em 27-espc — ver
+// 01-espc-geral/AquaControl_sensor_esqumqtico.md) — mesmo espirito visual do Esquematico
+// Interativo dos reles (EsquematicoInterativo.jsx: ESP32 + fios ortogonais + blocos de
+// status), mas SEM interatividade de clique (sensores sao so leitura, nao tem o que
+// "acionar") e SEM a coluna intermediaria de modulo (o sensor liga direto no GPIO do ESP32,
+// nao existe um MCP23017/rele no meio). 10 blocos = os 10 sensores fisicos atuais (o DHT11 é
+// UM sensor fisico só — 2 valores, temp+umidade — por isso vira um bloco só, não dois); o
+// resto do arquivo (calcularPinosGpio/ESP32_H/VIEWBOX_H) se adapta sozinho a quantos blocos
+// existirem, entao adicionar um sensor novo no futuro so precisa de uma linha aqui.
 const BLOCOS_SENSORES = [
     { titulo: 'Temp. Agua 1 (DS18B20)', gpio: 18, ids: ['temp_agua_1'] },
     { titulo: 'Temp. Agua 2 (DS18B20)', gpio: 18, ids: ['temp_agua_2'] },
     { titulo: 'Temp. Agua 3 (DS18B20)', gpio: 18, ids: ['temp_agua_3'] },
     { titulo: 'DHT11 (Temp./Umidade Ar)', gpio: 19, ids: ['temp_ar', 'umidade_ar'] },
     { titulo: 'Inclinacao (SW-520D)', gpio: 21, ids: ['inclinacao'] },
-    { titulo: 'Fluxo de Agua (YF-S201)', gpio: 23, ids: ['fluxo_agua'] },
+    { titulo: 'Fluxo de Agua 1 (YF-S201)', gpio: 23, ids: ['fluxo_agua'] },
+    // 27-espc: Fluxo 2 fica logo abaixo do Fluxo 1 (fora da ordem crescente de GPIO) — os dois
+    // canais de vazao sao o mesmo tipo de sensor, faz sentido visual manter juntos.
+    { titulo: 'Fluxo de Agua 2 (YF-S201)', gpio: 35, ids: ['fluxo_agua_2'] },
     { titulo: 'pH da Agua', gpio: 34, ids: ['ph_agua'] },
+    { titulo: 'Nivel de Agua (Reservatorio)', gpio: 36, ids: ['nivel_agua'] },
+    { titulo: 'Deteccao de Vazamento', gpio: 39, ids: ['vazamento'] },
 ];
 
 // --- Coluna 1: ESP32 ---
@@ -28,9 +35,9 @@ const ESP32_W = 180;
 // Esquematico Interativo dos reles — que nao tem barra de rolagem no mesmo modal "cheia")
 const BLOCO_X = 420;
 const BLOCO_W = 340;
-const BLOCO_H = 38;
-const BLOCO_GAP = 11;
-const BLOCOS_Y_START = ESP32_Y + 46;
+const BLOCO_H = 30;
+const BLOCO_GAP = 7;
+const BLOCOS_Y_START = ESP32_Y + 40;
 
 const VIEWBOX_W = 820;
 
@@ -189,7 +196,7 @@ export default function EsquematicoSensores({ aberto, onFechar, moduloSensor, da
                                         <text
                                             className={`esquematico__sensor-status esquematico__sensor-status--${classeSufixo}`}
                                             x={BLOCO_X + 14}
-                                            y={y + 14}
+                                            y={y + 10}
                                         >
                                             {conectado ? `● ${textoValor}` : '○ DESCONECTADO'}
                                         </text>

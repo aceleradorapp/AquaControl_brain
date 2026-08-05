@@ -8,6 +8,7 @@
 const db = require('../database/db');
 const { aplicarRelesNoModulo, buscarModulo } = require('./relesService');
 const { obterUltimaLeitura } = require('./sensoresTelemetriaService');
+const { registrarLog } = require('./logService');
 
 const INTERVALO_MS = 10000;
 const TIMEOUT_MS = 4000;
@@ -23,6 +24,19 @@ function registrarEvento(moduloId, equipamento, ligou, temperatura) {
         ligou ? 'TERMOSTATO_LIGOU' : 'TERMOSTATO_DESLIGOU',
         'termostato',
         `${equipamento.nome} (${equipamento.tipo}): ${ligou ? 'ligado' : 'desligado'} — sensor ${equipamento.sensor_id} = ${temperatura}, faixa configurada ${equipamento.temp_min}-${equipamento.temp_max}`
+    );
+
+    // 31-espc: System Log (2.1 da especificação) — mensagem MAIS RICA que a generica de
+    // historicoRelesService.js (inclui a temperatura que disparou a troca, ver exemplo na
+    // especificacao: "Aquecedor LIGADO (Automatico - Temp: 20.5°C)"), por isso
+    // historicoRelesService.js pula o caso origem==='automatico' de proposito — sem isso,
+    // a MESMA troca de rele apareceria duas vezes no log (uma generica, uma rica).
+    registrarLog(
+        `${equipamento.nome} ${ligou ? 'LIGADO' : 'DESLIGADO'} (Automático - Temp: ${temperatura}°C)`,
+        ligou ? 'sucesso' : 'alerta',
+        'atuador',
+        null,
+        'automatico'
     );
 }
 

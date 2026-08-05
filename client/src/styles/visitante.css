@@ -1,0 +1,545 @@
+/* Pagina de Visitante — "Portal do Aquario" (33-espc: login/master key; 35-espc: as 4 abas
+   com conteudo real — a especificacao numera como "34", ver nota de colisao em migrate.js).
+   Tema PROPRIO "Deep Blue Glassmorphism" — variaveis --vis-* SO existem dentro de
+   ".pagina-visitante", nao herdam nem vazam pro tema Sci-Fi/HUD ciano usado no resto do
+   dashboard ADM (pedido explicito da especificacao: "sem poluicao de telas militares/HUD").
+   Otimizada pra celular, com barra de abas fixa no rodape (like um app nativo). */
+
+.pagina-visitante {
+    --vis-fundo-a: #041c2c;
+    --vis-fundo-b: #0a3d55;
+    --vis-fundo-c: #0f5c73;
+    --vis-vidro-bg: rgba(255, 255, 255, 0.07);
+    --vis-vidro-borda: rgba(255, 255, 255, 0.14);
+    --vis-primaria: #2dd4bf;
+    --vis-primaria-forte: #5eead4;
+    --vis-texto: #eaf6f6;
+    --vis-texto-secundario: #9db8c2;
+    --vis-erro: #ff8a8a;
+    --vis-sombra: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --vis-raio: 18px;
+
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(ellipse at top, var(--vis-fundo-c) 0%, var(--vis-fundo-b) 45%, var(--vis-fundo-a) 100%);
+    color: var(--vis-texto);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    position: relative;
+    overflow-x: hidden;
+}
+
+.vis-cartao-vidro {
+    background: var(--vis-vidro-bg);
+    border: 1px solid var(--vis-vidro-borda);
+    border-radius: var(--vis-raio);
+    box-shadow: var(--vis-sombra);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+.vis-texto-secundario {
+    color: var(--vis-texto-secundario);
+    font-size: 0.85rem;
+}
+
+/* --- Canto superior (link discreto de acesso ADM / preview) --- */
+.vis-canto-topo {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 40;
+}
+.vis-link-discreto {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--vis-vidro-bg);
+    border: 1px solid var(--vis-vidro-borda);
+    backdrop-filter: blur(10px);
+    color: var(--vis-texto-secundario);
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+.vis-link-discreto:hover {
+    opacity: 1;
+    color: var(--vis-primaria-forte);
+}
+
+/* --- Conteudo / abas --- */
+.vis-conteudo {
+    flex: 1;
+    overflow-y: auto;
+    padding: 56px 16px 96px;
+    max-width: 640px;
+    width: 100%;
+    margin: 0 auto;
+}
+.vis-aba {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    animation: vis-surgir 0.25s ease;
+}
+@keyframes vis-surgir {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Barra de abas fixa no rodape (mobile-app style) --- */
+.vis-tabbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    background: rgba(4, 28, 44, 0.85);
+    border-top: 1px solid var(--vis-vidro-borda);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    z-index: 30;
+}
+.vis-tabbar__item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--vis-texto-secundario);
+    font-size: 0.65rem;
+    letter-spacing: 0.02em;
+    padding: 10px 4px 8px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+.vis-tabbar__item.ativo {
+    color: var(--vis-primaria-forte);
+}
+.vis-tabbar__item.ativo svg {
+    filter: drop-shadow(0 0 6px rgba(45, 212, 191, 0.6));
+}
+
+/* --- Hero (Aba O Aquario) --- */
+.vis-hero {
+    text-align: center;
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(160deg, rgba(45, 212, 191, 0.12), rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--vis-vidro-borda);
+    border-radius: var(--vis-raio);
+}
+.vis-hero__decoracao {
+    display: flex;
+    gap: 14px;
+    color: var(--vis-primaria);
+    opacity: 0.8;
+    margin-bottom: 4px;
+}
+.vis-hero__titulo {
+    font-size: 1.5rem;
+    margin: 0;
+    font-weight: 700;
+    color: var(--vis-texto);
+}
+.vis-hero__subtitulo {
+    color: var(--vis-texto-secundario);
+    font-size: 0.88rem;
+    max-width: 42ch;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* --- Ficha Tecnica (grid de destaques) --- */
+.vis-grid-ficha {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+.vis-ficha-item {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.vis-ficha-item__icone {
+    color: var(--vis-primaria);
+    margin-bottom: 2px;
+}
+.vis-ficha-item__rotulo {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--vis-texto-secundario);
+}
+.vis-ficha-item__valor {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--vis-texto);
+    line-height: 1.35;
+}
+
+/* --- Texto institucional / secoes (Aba Automacao) --- */
+.vis-texto-institucional {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.vis-texto-institucional p {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--vis-texto-secundario);
+}
+.vis-texto-institucional strong {
+    color: var(--vis-primaria-forte);
+    font-weight: 600;
+}
+.vis-secao-titulo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.1rem;
+    margin: 0;
+    color: var(--vis-texto);
+}
+.vis-secao-titulo-pequeno {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--vis-primaria-forte);
+    margin: 0 0 10px;
+    padding: 14px 14px 0;
+}
+.vis-cartao-vidro > .vis-lista-status {
+    padding: 0 14px 14px;
+}
+
+.vis-lista-status {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.vis-linha-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+    color: var(--vis-texto);
+}
+.vis-linha-status svg {
+    color: var(--vis-primaria);
+    flex-shrink: 0;
+}
+.vis-linha-status--offline {
+    opacity: 0.5;
+}
+.vis-linha-status--offline svg {
+    color: var(--vis-texto-secundario);
+}
+.vis-linha-status--ligado {
+    border: 1px solid rgba(45, 212, 191, 0.4);
+}
+.vis-linha-status__nome {
+    flex: 1;
+    font-size: 0.85rem;
+}
+.vis-linha-status__valor {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--vis-primaria-forte);
+}
+.vis-badge-status {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(45, 212, 191, 0.18);
+    color: var(--vis-primaria-forte);
+}
+
+/* --- Engenharia --- */
+.vis-lista-engenharia {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.vis-estagio {
+    display: flex;
+    gap: 12px;
+    padding: 14px;
+}
+.vis-estagio__icone {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(45, 212, 191, 0.14);
+    color: var(--vis-primaria-forte);
+}
+.vis-estagio__titulo {
+    margin: 0 0 4px;
+    font-size: 0.92rem;
+    color: var(--vis-texto);
+}
+.vis-estagio__texto {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--vis-texto-secundario);
+}
+
+/* --- Feed de Fauna (grid estilo Instagram) --- */
+.vis-grid-fauna {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+.vis-card-fauna {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+}
+.vis-card-fauna__imagem {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.85);
+}
+.vis-card-fauna__imagem img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.vis-card-fauna__badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(4, 28, 44, 0.75);
+    border: 1px solid var(--vis-vidro-borda);
+    color: var(--vis-primaria-forte);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+.vis-card-fauna__nome {
+    padding: 8px 10px 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--vis-texto);
+}
+
+/* --- Modal de detalhe da especie --- */
+.vis-modal-especie {
+    width: 100%;
+    max-width: 380px;
+    padding: 0 0 18px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 88vh;
+    overflow-y: auto;
+}
+.vis-modal-especie__fechar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    background: rgba(4, 28, 44, 0.6);
+    border: 1px solid var(--vis-vidro-borda);
+    color: var(--vis-texto);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.vis-modal-especie__imagem {
+    aspect-ratio: 16 / 10;
+    border-radius: var(--vis-raio) var(--vis-raio) 0 0;
+}
+.vis-modal-especie__nome {
+    margin: 0;
+    padding: 0 18px;
+    font-size: 1.15rem;
+    color: var(--vis-texto);
+}
+.vis-modal-especie__cientifico {
+    margin: -6px 0 0;
+    padding: 0 18px;
+    font-style: italic;
+    color: var(--vis-texto-secundario);
+    font-size: 0.82rem;
+}
+.vis-modal-especie .vis-badge-status {
+    margin: 0 18px;
+    width: fit-content;
+}
+.vis-modal-especie__parametros {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 4px 18px 0;
+}
+.vis-modal-especie__parametros > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+}
+.vis-modal-especie__parametros strong {
+    color: var(--vis-primaria-forte);
+    font-size: 0.9rem;
+}
+.vis-modal-especie__linha {
+    margin: 0;
+    padding: 0 18px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--vis-texto-secundario);
+    display: flex;
+    gap: 6px;
+}
+.vis-modal-especie__linha strong {
+    color: var(--vis-texto);
+    font-weight: 600;
+}
+.vis-modal-especie__linha svg {
+    flex-shrink: 0;
+    margin-top: 3px;
+    color: var(--vis-primaria);
+}
+
+/* --- Modais de autenticacao (Master Key / Login-Cadastro) --- */
+.vis-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 12, 20, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+}
+.vis-caixa {
+    width: 100%;
+    max-width: 340px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.vis-caixa__icone {
+    align-self: center;
+    color: var(--vis-primaria);
+}
+.vis-caixa__titulo {
+    margin: 0;
+    text-align: center;
+    font-size: 1.1rem;
+    color: var(--vis-texto);
+}
+.vis-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.vis-rotulo {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--vis-texto-secundario);
+}
+.vis-input {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--vis-vidro-borda);
+    border-radius: 10px;
+    color: var(--vis-texto);
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    width: 100%;
+}
+.vis-input:focus {
+    outline: none;
+    border-color: var(--vis-primaria);
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
+}
+.vis-erro {
+    color: var(--vis-erro);
+    font-size: 0.78rem;
+    margin: 0;
+}
+.vis-caixa__acoes {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+.vis-botao {
+    flex: 1;
+    background: var(--vis-primaria);
+    border: none;
+    color: #032b28;
+    font-weight: 700;
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: filter 0.2s ease;
+}
+.vis-botao:hover {
+    filter: brightness(1.08);
+}
+.vis-botao:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.vis-botao--secundario {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--vis-texto);
+    border: 1px solid var(--vis-vidro-borda);
+}
+
+@media (min-width: 720px) {
+    .vis-grid-ficha,
+    .vis-grid-fauna {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}

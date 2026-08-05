@@ -3,6 +3,7 @@ import {
     Cpu,
     Database,
     Download,
+    Lock,
     Monitor,
     Pencil,
     Plus,
@@ -11,10 +12,13 @@ import {
     Search,
     Thermometer,
     Trash2,
+    Unlock,
     Upload,
+    X,
 } from 'lucide-react';
 import ModalHud from './ModalHud';
 import ModalEquipamentoAutomacao from './ModalEquipamentoAutomacao';
+import PreviewTelaProtecao from './PreviewTelaProtecao';
 import { CampoNumero, CampoSelect, CampoToggle, CartaoSecao, LinhaConfiguracao } from './CamposConfiguracao';
 
 const CATEGORIAS = [
@@ -90,6 +94,7 @@ export default function ModalConfiguracoes({
     tema,
     onAlterarTema,
     registrarLog,
+    onDesparear,
 }) {
     const [categoriaAtiva, setCategoriaAtiva] = useState('sistema');
     const [busca, setBusca] = useState('');
@@ -104,10 +109,45 @@ export default function ModalConfiguracoes({
     const [carregando, setCarregando] = useState(false);
     const [salvando, setSalvando] = useState(false);
 
+    // Protecao de Tela do Display (Matrix Core Mode: tempo + cor) — tabela/endpoint PROPRIOS
+    // (GET/PUT /api/config-display), separados do "config" geral acima. Tem seu proprio botao
+    // "Enviar ao Display" (persiste no Brain E empurra ao vivo pro ESP32 numa unica acao), fora
+    // da barra de salvar generica — mesmo espirito de "persistencia imediata" ja usado por
+    // Equipamentos & Automacao.
+    const [configDisplay, setConfigDisplay] = useState(null);
+    const [enviandoProtecao, setEnviandoProtecao] = useState(false);
+
     const [modalEquipamentoAberto, setModalEquipamentoAberto] = useState(false);
     const [equipamentoEditando, setEquipamentoEditando] = useState(null);
 
+    // Seguranca e Dispositivos (33-espc) — "authConfig" so tem "bloquearCadastro" (a Master
+    // Key em si nunca volta do backend, ver GET /api/auth/configuracoes — so da pra
+    // SOBRESCREVER as cegas). "novaMasterKey" e um campo write-only proprio, separado do
+    // resto do rascunho "config" desta tela — muda com seu proprio botao "Alterar", nao com o
+    // "Salvar Alteracoes" generico (nao faz sentido a Master Key mudar sem uma acao explicita
+    // dedicada, ao contrario de um numero de configuracao qualquer).
+    const [authConfig, setAuthConfig] = useState({ bloquearCadastro: false });
+    const [novaMasterKey, setNovaMasterKey] = useState('');
+    const [salvandoMasterKey, setSalvandoMasterKey] = useState(false);
+
+    // Usuarios Administradores (34-espc) — lista/criar/editar/bloquear/excluir. "adminUsuarios"
+    // nunca tem senha_hash nenhum (o backend ja filtra, ver authService.js:listarAdmins).
+    // Edicao inline por linha (usuarioEditandoId aponta qual linha esta em modo de edicao, so
+    // uma por vez) — nao precisa de uma modal separada pra so 2 campos (nome/senha nova).
+    const [adminUsuarios, setAdminUsuarios] = useState([]);
+    const [formNovoUsuarioAberto, setFormNovoUsuarioAberto] = useState(false);
+    const [novoUsuarioNome, setNovoUsuarioNome] = useState('');
+    const [novoUsuarioSenha, setNovoUsuarioSenha] = useState('');
+    const [novoUsuarioConfirmar, setNovoUsuarioConfirmar] = useState('');
+    const [erroNovoUsuario, setErroNovoUsuario] = useState('');
+    const [salvandoNovoUsuario, setSalvandoNovoUsuario] = useState(false);
+    const [usuarioEditandoId, setUsuarioEditandoId] = useState(null);
+    const [usuarioEditandoNome, setUsuarioEditandoNome] = useState('');
+    const [usuarioEditandoSenha, setUsuarioEditandoSenha] = useState('');
+    const [erroEdicaoUsuario, setErroEdicaoUsuario] = useState('');
+
     const moduloAtuador = modulos.find((m) => m.tipo === 'atuador') ?? null;
+    const moduloDisplay = modulos.find((m) => m.tipo === 'display') ?? null;
 
     useEffect(() => {
         if (!aberto) return;
@@ -117,7 +157,10 @@ export default function ModalConfiguracoes({
             fetch('/api/configuracoes/faixas-seguras').then((r) => r.json()),
             fetch('/api/configuracoes/calibracao-fluxo').then((r) => r.json()),
             fetch('/api/configuracoes/equipamentos').then((r) => r.json()),
-        ]).then(([dadosConfig, dadosFaixas, dadosCalibracaoFluxo, dadosEquipamentos]) => {
+            fetch('/api/config-display').then((r) => r.json()),
+            fetch('/api/auth/configuracoes').then((r) => r.json()),
+            fetch('/api/auth/usuarios').then((r) => r.json()),
+        ]).then(([dadosConfig, dadosFaixas, dadosCalibracaoFluxo, dadosEquipamentos, dadosConfigDisplay, dadosAuth, dadosUsuarios]) => {
             setConfig(dadosConfig);
             setConfigOriginal(dadosConfig);
             setFaixas(dadosFaixas);
@@ -125,9 +168,209 @@ export default function ModalConfiguracoes({
             setCalibracaoFluxo(dadosCalibracaoFluxo);
             setCalibracaoFluxoOriginal(dadosCalibracaoFluxo);
             setEquipamentos(dadosEquipamentos);
+            setConfigDisplay(dadosConfigDisplay);
+            setAuthConfig(dadosAuth);
+            setAdminUsuarios(dadosUsuarios);
             setCarregando(false);
         });
     }, [aberto]);
+
+    function recarregarUsuarios() {
+        fetch('/api/auth/usuarios')
+            .then((r) => r.json())
+            .then(setAdminUsuarios)
+            .catch(() => {});
+    }
+
+    async function criarNovoUsuario() {
+        setErroNovoUsuario('');
+        if (novoUsuarioSenha !== novoUsuarioConfirmar) {
+            setErroNovoUsuario('As senhas nao coincidem.');
+            return;
+        }
+        setSalvandoNovoUsuario(true);
+        try {
+            const resposta = await fetch('/api/auth/usuarios', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usuario: novoUsuarioNome.trim(), senha: novoUsuarioSenha }),
+            });
+            const dados = await resposta.json();
+            if (!resposta.ok) {
+                setErroNovoUsuario(dados.erro ?? 'Falha ao criar usuario.');
+                return;
+            }
+            registrarLog?.(`Usuario administrador "${dados.usuario}" criado.`, 'sucesso');
+            setNovoUsuarioNome('');
+            setNovoUsuarioSenha('');
+            setNovoUsuarioConfirmar('');
+            setFormNovoUsuarioAberto(false);
+            recarregarUsuarios();
+        } catch {
+            setErroNovoUsuario('Falha de comunicacao com o servidor.');
+        } finally {
+            setSalvandoNovoUsuario(false);
+        }
+    }
+
+    function iniciarEdicaoUsuario(usuarioLinha) {
+        setUsuarioEditandoId(usuarioLinha.id);
+        setUsuarioEditandoNome(usuarioLinha.usuario);
+        setUsuarioEditandoSenha('');
+        setErroEdicaoUsuario('');
+    }
+
+    function cancelarEdicaoUsuario() {
+        setUsuarioEditandoId(null);
+        setErroEdicaoUsuario('');
+    }
+
+    async function salvarEdicaoUsuario(id) {
+        setErroEdicaoUsuario('');
+        if (usuarioEditandoSenha && usuarioEditandoSenha.length < 4) {
+            setErroEdicaoUsuario('Senha deve ter no minimo 4 caracteres.');
+            return;
+        }
+        try {
+            const corpo = { usuario: usuarioEditandoNome.trim() };
+            if (usuarioEditandoSenha) corpo.senha = usuarioEditandoSenha;
+            const resposta = await fetch(`/api/auth/usuarios/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(corpo),
+            });
+            const dados = await resposta.json();
+            if (!resposta.ok) {
+                setErroEdicaoUsuario(dados.erro ?? 'Falha ao salvar.');
+                return;
+            }
+            registrarLog?.(`Usuario administrador "${dados.usuario}" editado.`, 'alerta');
+            setUsuarioEditandoId(null);
+            recarregarUsuarios();
+        } catch {
+            setErroEdicaoUsuario('Falha de comunicacao com o servidor.');
+        }
+    }
+
+    async function alternarBloqueioUsuario(usuarioLinha) {
+        try {
+            const resposta = await fetch(`/api/auth/usuarios/${usuarioLinha.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bloqueado: !usuarioLinha.bloqueado }),
+            });
+            const dados = await resposta.json();
+            if (!resposta.ok) {
+                registrarLog?.(dados.erro ?? 'Falha ao alterar o bloqueio.', 'erro');
+                return;
+            }
+            registrarLog?.(`Usuario "${usuarioLinha.usuario}" ${dados.bloqueado ? 'bloqueado' : 'desbloqueado'}.`, 'alerta');
+            recarregarUsuarios();
+        } catch {
+            registrarLog?.('Falha de comunicacao com o servidor.', 'erro');
+        }
+    }
+
+    async function excluirUsuarioAdmin(usuarioLinha) {
+        if (!window.confirm(`Excluir o usuario "${usuarioLinha.usuario}"? Essa acao nao pode ser desfeita.`)) return;
+        try {
+            const resposta = await fetch(`/api/auth/usuarios/${usuarioLinha.id}`, { method: 'DELETE' });
+            const dados = await resposta.json();
+            if (!resposta.ok) {
+                registrarLog?.(dados.erro ?? 'Falha ao excluir o usuario.', 'erro');
+                return;
+            }
+            registrarLog?.(`Usuario administrador "${usuarioLinha.usuario}" excluido.`, 'alerta');
+            recarregarUsuarios();
+        } catch {
+            registrarLog?.('Falha de comunicacao com o servidor.', 'erro');
+        }
+    }
+
+    // Bloquear Cadastro (33-espc) — persiste IMEDIATAMENTE ao alternar (mesmo espirito de
+    // "Enviar ao Display" acima: um toggle de seguranca nao deveria depender de lembrar de
+    // clicar "Salvar Alteracoes" no rodape pra valer de verdade).
+    async function alternarBloquearCadastro(novoValor) {
+        setAuthConfig((atual) => ({ ...atual, bloquearCadastro: novoValor }));
+        try {
+            const resposta = await fetch('/api/auth/configuracoes', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bloquearCadastro: novoValor }),
+            });
+            const dados = await resposta.json();
+            setAuthConfig(dados);
+            registrarLog?.(`Bloquear Cadastro ${novoValor ? 'ativado' : 'desativado'}.`, 'alerta');
+        } catch {
+            setAuthConfig((atual) => ({ ...atual, bloquearCadastro: !novoValor })); // desfaz o otimista
+            registrarLog?.('Falha ao salvar Bloquear Cadastro.', 'erro');
+        }
+    }
+
+    async function alterarMasterKey() {
+        if (!novaMasterKey.trim()) return;
+        setSalvandoMasterKey(true);
+        try {
+            await fetch('/api/auth/configuracoes', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ masterKey: novaMasterKey.trim() }),
+            });
+            registrarLog?.('Master Key do atalho Ctrl+F12 alterada.', 'alerta');
+            setNovaMasterKey('');
+        } catch {
+            registrarLog?.('Falha ao alterar a Master Key.', 'erro');
+        } finally {
+            setSalvandoMasterKey(false);
+        }
+    }
+
+    function confirmarDesparear() {
+        if (window.confirm('Desparear este dispositivo? Voce vai precisar entrar novamente (usuario e senha) pra acessar o Dashboard neste navegador.')) {
+            onDesparear?.();
+        }
+    }
+
+    // Salva no Brain (PUT /api/config-display) E, se houver um modulo "display" cadastrado,
+    // empurra ao vivo pro ESP32 (POST /api/modulos/:id/config-protecao) — as duas coisas numa
+    // unica acao, ja que nao faz sentido persistir sem enviar (o Display so buscaria isso de
+    // novo no proximo boot) nem enviar sem persistir (se perderia no proximo reboot do Display).
+    async function enviarConfigProtecao() {
+        setEnviandoProtecao(true);
+        try {
+            const respostaSalvar = await fetch('/api/config-display', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(configDisplay),
+            });
+            const dadosSalvos = await respostaSalvar.json();
+            setConfigDisplay(dadosSalvos);
+
+            if (!moduloDisplay) {
+                registrarLog?.('Protecao de tela salva no Brain — nenhum modulo "display" cadastrado pra enviar ao vivo agora.', 'alerta');
+                return;
+            }
+
+            const respostaEnvio = await fetch(`/api/modulos/${moduloDisplay.id}/config-protecao`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tempoEsperaSegundos: Number(dadosSalvos.tempo_espera_protecao_segundos),
+                    corHex: dadosSalvos.cor_protecao_hex,
+                }),
+            });
+            const dadosEnvio = await respostaEnvio.json();
+            if (dadosEnvio.disponivel) {
+                registrarLog?.('Protecao de tela enviada ao Display com sucesso.', 'sucesso');
+            } else {
+                registrarLog?.(`Salva no Brain, mas nao foi possivel enviar ao Display agora: ${dadosEnvio.motivo}`, 'alerta');
+            }
+        } catch (erro) {
+            registrarLog?.(erro.message || 'Falha ao enviar a protecao de tela.', 'erro');
+        } finally {
+            setEnviandoProtecao(false);
+        }
+    }
 
     const sujo = useMemo(() => {
         if (!config || !configOriginal) return false;
@@ -405,13 +648,160 @@ export default function ModalConfiguracoes({
                                     </CartaoSecao>
                                 )}
 
-                                {corresponde('Usuario', 'Seguranca', 'Senha', 'API') && (
-                                    <CartaoSecao titulo="Usuario e Seguranca">
+                                {corresponde('Usuario', 'Seguranca', 'Senha', 'Dispositivo', 'Master Key', 'Visitante') && (
+                                    <CartaoSecao titulo="Seguranca e Dispositivos">
                                         <p className="hud-tag config-nota">
-                                            Este sistema nao tem autenticacao — e uma ferramenta de uso local (LAN), sem exposicao a internet.
-                                            Nao ha login, senha, tempo de sessao ou chave de API pra configurar hoje. Adicionar isso mudaria o
-                                            modelo de seguranca do projeto inteiro e nao foi implementado sem um pedido especifico pra essa mudanca.
+                                            Pareamento Silencioso de Dispositivo (33-espc): o token permanente fica so no navegador
+                                            (localStorage) — isto aqui controla a Pagina de Visitante e o atalho secreto, NAO bloqueia
+                                            as rotas da API (uso interno de rede local, sem exposicao a internet).
                                         </p>
+
+                                        <LinhaConfiguracao
+                                            titulo="Bloquear Cadastro"
+                                            descricao='Oculta o botao "[Acesso Administrativo]" na Pagina de Visitante — o atalho Ctrl+F12 continua funcionando.'
+                                        >
+                                            <CampoToggle checked={!!authConfig.bloquearCadastro} onChange={alternarBloquearCadastro} />
+                                        </LinhaConfiguracao>
+
+                                        <LinhaConfiguracao titulo="Master Key do Atalho (Ctrl+F12)" descricao="Padrao inicial: 718848. Nunca e exibida depois de trocada.">
+                                            <div className="config-campo-numero">
+                                                <input
+                                                    className="hud-input"
+                                                    type="text"
+                                                    placeholder="Nova Master Key"
+                                                    value={novaMasterKey}
+                                                    onChange={(e) => setNovaMasterKey(e.target.value)}
+                                                />
+                                                <button
+                                                    className="botao-primario"
+                                                    type="button"
+                                                    onClick={alterarMasterKey}
+                                                    disabled={salvandoMasterKey || !novaMasterKey.trim()}
+                                                >
+                                                    {salvandoMasterKey ? 'Salvando...' : 'Alterar'}
+                                                </button>
+                                            </div>
+                                        </LinhaConfiguracao>
+
+                                        <LinhaConfiguracao
+                                            titulo="Dispositivo Atual"
+                                            descricao="Remove o token deste navegador e encerra a sessao Master aqui."
+                                        >
+                                            <button className="botao-primario config-botao-perigo" type="button" onClick={confirmarDesparear}>
+                                                Desparear Este Dispositivo
+                                            </button>
+                                        </LinhaConfiguracao>
+                                    </CartaoSecao>
+                                )}
+
+                                {corresponde('Usuario', 'Administrador', 'Conta', 'Bloquear', 'Excluir') && (
+                                    <CartaoSecao
+                                        titulo="Usuarios Administradores"
+                                        acao={
+                                            <button
+                                                className="botao-icone"
+                                                type="button"
+                                                aria-label="Adicionar usuario"
+                                                onClick={() => {
+                                                    setErroNovoUsuario('');
+                                                    setFormNovoUsuarioAberto((v) => !v);
+                                                }}
+                                            >
+                                                {formNovoUsuarioAberto ? <X size={16} /> : <Plus size={16} />}
+                                            </button>
+                                        }
+                                    >
+                                        {formNovoUsuarioAberto && (
+                                            <div className="config-novo-usuario">
+                                                <input
+                                                    className="hud-input"
+                                                    type="text"
+                                                    placeholder="Usuario"
+                                                    value={novoUsuarioNome}
+                                                    onChange={(e) => setNovoUsuarioNome(e.target.value)}
+                                                />
+                                                <input
+                                                    className="hud-input"
+                                                    type="password"
+                                                    placeholder="Senha"
+                                                    value={novoUsuarioSenha}
+                                                    onChange={(e) => setNovoUsuarioSenha(e.target.value)}
+                                                />
+                                                <input
+                                                    className="hud-input"
+                                                    type="password"
+                                                    placeholder="Confirmar Senha"
+                                                    value={novoUsuarioConfirmar}
+                                                    onChange={(e) => setNovoUsuarioConfirmar(e.target.value)}
+                                                />
+                                                {erroNovoUsuario && <p className="mensagem-erro hud-tag">{erroNovoUsuario}</p>}
+                                                <button
+                                                    className="botao-primario"
+                                                    type="button"
+                                                    disabled={salvandoNovoUsuario || !novoUsuarioNome.trim() || !novoUsuarioSenha}
+                                                    onClick={criarNovoUsuario}
+                                                >
+                                                    {salvandoNovoUsuario ? 'Criando...' : 'Criar Usuario'}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {adminUsuarios.length === 0 && <p className="hud-tag">Nenhum usuario cadastrado.</p>}
+
+                                        {adminUsuarios.map((usuarioLinha) =>
+                                            usuarioEditandoId === usuarioLinha.id ? (
+                                                <div key={usuarioLinha.id} className="config-novo-usuario">
+                                                    <input
+                                                        className="hud-input"
+                                                        type="text"
+                                                        value={usuarioEditandoNome}
+                                                        onChange={(e) => setUsuarioEditandoNome(e.target.value)}
+                                                    />
+                                                    <input
+                                                        className="hud-input"
+                                                        type="password"
+                                                        placeholder="Nova senha (deixe em branco pra manter)"
+                                                        value={usuarioEditandoSenha}
+                                                        onChange={(e) => setUsuarioEditandoSenha(e.target.value)}
+                                                    />
+                                                    {erroEdicaoUsuario && <p className="mensagem-erro hud-tag">{erroEdicaoUsuario}</p>}
+                                                    <div className="config-linha__campo">
+                                                        <button className="botao-primario" type="button" onClick={() => salvarEdicaoUsuario(usuarioLinha.id)}>
+                                                            Salvar
+                                                        </button>
+                                                        <button className="botao-primario" type="button" onClick={cancelarEdicaoUsuario}>
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <LinhaConfiguracao
+                                                    key={usuarioLinha.id}
+                                                    titulo={usuarioLinha.usuario}
+                                                    descricao={`Criado em ${usuarioLinha.criado_em}${usuarioLinha.bloqueado ? ' — BLOQUEADO' : ''}`}
+                                                >
+                                                    <button className="botao-icone" type="button" aria-label="Editar" onClick={() => iniciarEdicaoUsuario(usuarioLinha)}>
+                                                        <Pencil size={14} />
+                                                    </button>
+                                                    <button
+                                                        className="botao-icone"
+                                                        type="button"
+                                                        aria-label={usuarioLinha.bloqueado ? 'Desbloquear' : 'Bloquear'}
+                                                        onClick={() => alternarBloqueioUsuario(usuarioLinha)}
+                                                    >
+                                                        {usuarioLinha.bloqueado ? <Unlock size={14} /> : <Lock size={14} />}
+                                                    </button>
+                                                    <button
+                                                        className="botao-icone botao-icone--erro"
+                                                        type="button"
+                                                        aria-label="Excluir"
+                                                        onClick={() => excluirUsuarioAdmin(usuarioLinha)}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </LinhaConfiguracao>
+                                            )
+                                        )}
                                     </CartaoSecao>
                                 )}
                             </>
@@ -481,6 +871,45 @@ export default function ModalConfiguracoes({
                                         </div>
                                     </CartaoSecao>
                                 )}
+
+                                {configDisplay && corresponde('Protecao de Tela', 'Matrix Core Mode', 'Screensaver', 'Descanso', 'Cor') && (
+                                    <CartaoSecao titulo="Protecao de Tela do Display (Matrix Core Mode)">
+                                        <LinhaConfiguracao
+                                            titulo="Tempo de Espera"
+                                            descricao="Tempo sem toques no Display antes do protetor de tela entrar."
+                                        >
+                                            <CampoNumero
+                                                valor={configDisplay.tempo_espera_protecao_segundos}
+                                                onChange={(v) => setConfigDisplay((atual) => ({ ...atual, tempo_espera_protecao_segundos: v }))}
+                                                unidade="s"
+                                                min={10}
+                                                step={10}
+                                            />
+                                        </LinhaConfiguracao>
+                                        <LinhaConfiguracao titulo="Cor da Chuva Digital" descricao="Cor da animacao do protetor de tela do Display.">
+                                            <input
+                                                type="color"
+                                                className="config-seletor-cor"
+                                                value={configDisplay.cor_protecao_hex}
+                                                onChange={(e) => setConfigDisplay((atual) => ({ ...atual, cor_protecao_hex: e.target.value }))}
+                                            />
+                                            <span className="hud-tag hud-mono">{configDisplay.cor_protecao_hex}</span>
+                                        </LinhaConfiguracao>
+
+                                        <PreviewTelaProtecao corHex={configDisplay.cor_protecao_hex} />
+
+                                        {!moduloDisplay && (
+                                            <p className="hud-tag config-nota">
+                                                Nenhum modulo do tipo "display" cadastrado ainda — a configuracao vai ficar salva no Brain, mas
+                                                so chega no Display quando ele buscar no proximo boot.
+                                            </p>
+                                        )}
+
+                                        <button className="botao-primario" type="button" onClick={enviarConfigProtecao} disabled={enviandoProtecao}>
+                                            {enviandoProtecao ? 'Enviando...' : 'Enviar ao Display'}
+                                        </button>
+                                    </CartaoSecao>
+                                )}
                             </>
                         )}
 
@@ -511,6 +940,27 @@ export default function ModalConfiguracoes({
                                                 />
                                             </LinhaConfiguracao>
                                         ))}
+                                    </CartaoSecao>
+                                )}
+
+                                {corresponde('Ajuste Fino', 'Calibracao', 'Temperatura', 'Termometro', 'Offset') && (
+                                    <CartaoSecao titulo="Ajuste Fino — Temperatura da Agua">
+                                        <p className="hud-tag config-nota">
+                                            Some (ou subtrai) este valor de TODOS os sensores de temperatura da agua (temp_agua_1, temp_agua_2,
+                                            etc.) antes de qualquer calculo — media em Parametros Vitais, historico, Display e relatorios ja
+                                            saem calibrados. Use um termometro de referencia pra medir a diferenca real e ajustar aqui; e o mesmo
+                                            offset pra todos os sensores de agua, nao um ajuste por sensor individual.
+                                        </p>
+                                        <LinhaConfiguracao titulo="Offset de Temperatura da Agua">
+                                            <CampoNumero
+                                                valor={config.calibracao_temp_agua_offset}
+                                                onChange={(v) => atualizarConfig('calibracao_temp_agua_offset', v)}
+                                                unidade="°C"
+                                                min={-5}
+                                                max={5}
+                                                step={0.1}
+                                            />
+                                        </LinhaConfiguracao>
                                     </CartaoSecao>
                                 )}
 
@@ -580,8 +1030,7 @@ export default function ModalConfiguracoes({
                                             </table>
                                         </div>
                                         <p className="hud-tag config-nota">
-                                            Pra renomear sensores (nome geral ou nome-so-pro-Display), use "Editar Controlador" no modulo de
-                                            telemetria ou o widget "Sensores no Display".
+                                            Pra renomear sensores, use "Editar Controlador" no modulo de telemetria.
                                         </p>
                                     </CartaoSecao>
                                 )}

@@ -55,6 +55,26 @@ export default function ModalCentralRelatorios({ aberto, onFechar }) {
 
     const [dados, setDados] = useState({ telemetria: null, consumo: null, automacao: null, alertas: null });
     const [carregando, setCarregando] = useState(false);
+    // Nomes personalizados por sensor (sensorId -> nomePersonalizado, ver
+    // sensoresPersonalizadosController.js) — buscado uma vez quando o modal abre (nao depende
+    // do periodo escolhido) so pra legendas de grafico usarem o nome de VERDADE do sensor
+    // (ex.: "Fundo"/"Superficie") em vez de um rotulo generico tipo "Agua 1"/"Agua 2".
+    const [nomesSensores, setNomesSensores] = useState({});
+
+    useEffect(() => {
+        if (!aberto) return undefined;
+        let cancelado = false;
+        fetch('/api/sensores-personalizados')
+            .then((resposta) => resposta.json())
+            .then((lista) => {
+                if (cancelado || !Array.isArray(lista)) return;
+                setNomesSensores(Object.fromEntries(lista.map((s) => [s.sensorId, s.nomePersonalizado])));
+            })
+            .catch(() => {});
+        return () => {
+            cancelado = true;
+        };
+    }, [aberto]);
 
     useEffect(() => {
         if (!aberto) return;
@@ -184,7 +204,7 @@ export default function ModalCentralRelatorios({ aberto, onFechar }) {
                 </div>
 
                 <div className="central-relatorios__conteudo relatorio-imprimivel hud-scrollbar">
-                    {abaAtiva === 'telemetria' && <RelatorioTelemetria dados={dados.telemetria} carregando={carregando} />}
+                    {abaAtiva === 'telemetria' && <RelatorioTelemetria dados={dados.telemetria} carregando={carregando} nomesSensores={nomesSensores} />}
                     {abaAtiva === 'consumo' && <RelatorioConsumoAgua dados={dados.consumo} carregando={carregando} />}
                     {abaAtiva === 'automacao' && <RelatorioAutomacao dados={dados.automacao} carregando={carregando} />}
                     {abaAtiva === 'alertas' && <RelatorioAlertas dados={dados.alertas} carregando={carregando} />}

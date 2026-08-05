@@ -5,6 +5,7 @@
 // a rede), não faz o ping na hora da requisição.
 const net = require('net');
 const db = require('../database/db');
+const { registrarLog } = require('./logService');
 
 const TIMEOUT_PING_MS = 1500;
 const INTERVALO_PADRAO_MS = 10000;
@@ -45,14 +46,30 @@ function pingModulo(ip, porta = 80, timeoutMs = TIMEOUT_PING_MS) {
 // Verifica um único módulo e já atualiza o cache — usado tanto pelo laço periódico
 // quanto pra dar um retorno mais rápido logo após cadastrar um módulo novo (ver
 // modulosController.js), em vez de esperar até 10s pelo próximo ciclo.
+//
+// 31-espc: registra no System Log toda TRANSIÇÃO real de estado (online->offline ou
+// vice-versa) — "anterior !== undefined" evita logar uma "reconexão" falsa na primeira vez
+// que um módulo é checado (boot do servidor, ou módulo recém-cadastrado), já que nesse caso
+// não existe um estado anterior de verdade pra comparar.
 async function verificarModulo(modulo) {
     const online = await pingModulo(modulo.ip);
+    const anterior = statusPorModulo.get(modulo.id);
     statusPorModulo.set(modulo.id, online);
+
+    if (anterior !== undefined && anterior !== online) {
+        const nome = modulo.nome ?? `Modulo ${modulo.id}`;
+        if (online) {
+            registrarLog(`Conexao restabelecida com ${nome} (${modulo.ip}).`, 'sucesso', 'conexao', null, 'automatico');
+        } else {
+            registrarLog(`Comunicacao perdida com ${nome} (${modulo.ip}).`, 'erro', 'conexao', null, 'automatico');
+        }
+    }
+
     return online;
 }
 
 async function verificarTodosOsModulos() {
-    const modulos = db.prepare('SELECT id, ip FROM modulos').all();
+    const modulos = db.prepare('SELECT id, ip, nome, tipo FROM modulos').all();
     await Promise.all(modulos.map(verificarModulo));
 }
 

@@ -30,6 +30,28 @@ function buscarModuloTelemetria() {
 // cima do que o firmware do sensor manda por padrao, ANTES de guardar em "ultimaLeitura" ou
 // gravar historico, pra todo mundo que consome esse cache (dashboard, historico, Display) ja
 // ver o nome certo sem precisar saber que essa personalizacao existe.
+// 28-espc: ajuste fino de temperatura da agua (Configuracoes Globais -> Sensores &
+// Telemetria) — um offset aditivo UNICO (°C) aplicado a TODOS os sensores "temp_agua_*",
+// direto na leitura crua do ESP, ANTES de qualquer outra coisa consumir o valor (media em
+// Parametros Vitais, historico_sensores, push pro Display, relatorios). Pensado pra calibrar
+// contra um termometro de referencia real — NAO tenta corrigir um sensor especifico com
+// defeito, o offset e o mesmo pra todos os canais.
+function obterOffsetCalibracaoTempAgua() {
+    const linha = db.prepare("SELECT valor FROM configuracoes_gerais WHERE chave = 'calibracao_temp_agua_offset'").get();
+    const offset = Number(linha?.valor);
+    return Number.isFinite(offset) ? offset : 0;
+}
+
+function aplicarCalibracaoTempAgua(sensores) {
+    const offset = obterOffsetCalibracaoTempAgua();
+    if (offset === 0) return sensores;
+
+    return sensores.map((sensor) => {
+        if (!sensor.id.startsWith('temp_agua') || !sensor.conectado || typeof sensor.valor !== 'number') return sensor;
+        return { ...sensor, valor: sensor.valor + offset };
+    });
+}
+
 function aplicarNomesPersonalizados(sensores) {
     const linhas = db.prepare('SELECT sensor_id, nome_personalizado, nome_display FROM sensores_personalizados').all();
     const personalizacoes = new Map(linhas.map((l) => [l.sensor_id, l]));
@@ -94,7 +116,7 @@ async function cicloSensores() {
             return;
         }
 
-        ultimaLeitura = { ...dados, sensores: aplicarNomesPersonalizados(dados.sensores) };
+        ultimaLeitura = { ...dados, sensores: aplicarNomesPersonalizados(aplicarCalibracaoTempAgua(dados.sensores)) };
         registrarMudancas(modulo.id, ultimaLeitura.sensores);
     } catch {
         ultimaLeitura = null;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, QrCode, Send, Trash2 } from 'lucide-react';
+import { Plus, QrCode, Send, Smartphone, Trash2, Wifi } from 'lucide-react';
 
 // Mesma regra de escape que o firmware já usava (DisplayHUD::escaparParaWifiQr) — agora
 // migrada pra cá, já que é o dashboard que monta o conteúdo do QR de Wi-Fi antes de
@@ -14,8 +14,13 @@ function montarConteudoWifi(ssid, senha) {
 }
 
 // Biblioteca de QR Codes (09-espc): cadastra vários (Wi-Fi ou texto/URL livre) e escolhe
-// qual está "ativo" — é esse que o Display busca (GET /api/qrcodes/ativo) quando alguém
-// abre a Tela de QR Code nele. Só um pode estar ativo por vez (ver ativarQrcode no server).
+// qual está "ativo" — era o único conceito antes do 04-espc, quando a tela principal do
+// Display ganhou 2 botões FIXOS ("Internet"/"App") que buscam por PAPEL, não por "ativo": os
+// dois precisam ter um QR sempre disponível ao mesmo tempo, e "ativo" só guarda UM QR por
+// vez (era pensado pra Tela de QR Code antiga, que foi removida). "papel" é independente de
+// "ativo" — um QR pode ser "ativo" (mostrado se algo ainda usar /api/qrcodes/ativo) E também
+// ter um papel fixo, ou nenhum dos dois.
+const ROTULO_PAPEL = { wifi: 'WI-FI DO DISPLAY', app: 'APP DO DISPLAY' };
 export default function PainelQrCodes() {
     const [qrcodes, setQrcodes] = useState([]);
     const [carregando, setCarregando] = useState(true);
@@ -68,6 +73,18 @@ export default function PainelQrCodes() {
 
     async function ativar(id) {
         await fetch(`/api/qrcodes/${id}/ativar`, { method: 'PUT' });
+        buscarQrcodes();
+    }
+
+    // Clicar de novo no papel já atribuído REMOVE (toggle) — mesma UX de "ativar" acima, só
+    // que sem exigir trocar por outro QR pra desmarcar.
+    async function definirPapel(qr, papel) {
+        const novoPapel = qr.papel === papel ? null : papel;
+        await fetch(`/api/qrcodes/${qr.id}/papel`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ papel: novoPapel }),
+        });
         buscarQrcodes();
     }
 
@@ -135,13 +152,29 @@ export default function PainelQrCodes() {
                         >
                             <QrCode size={14} />
                             <span className="painel-qrcodes__nome">{qr.nome}</span>
-                            {qr.ativo ? (
-                                <span className="hud-tag painel-qrcodes__tag-ativo">NO DISPLAY</span>
-                            ) : (
-                                <button className="botao-icone" onClick={() => ativar(qr.id)} title="Enviar este QR pro Display" type="button">
+                            {qr.papel && <span className="hud-tag painel-qrcodes__tag-papel">{ROTULO_PAPEL[qr.papel]}</span>}
+                            {qr.ativo && <span className="hud-tag painel-qrcodes__tag-ativo">NO DISPLAY</span>}
+                            {!qr.ativo && (
+                                <button className="botao-icone" onClick={() => ativar(qr.id)} title="Enviar este QR pro Display (tela antiga)" type="button">
                                     <Send size={14} />
                                 </button>
                             )}
+                            <button
+                                className={`botao-icone ${qr.papel === 'wifi' ? 'botao-icone--papel-ativo' : ''}`}
+                                onClick={() => definirPapel(qr, 'wifi')}
+                                title={qr.papel === 'wifi' ? 'Remover do botao Internet da tela principal' : 'Usar no botao Internet (Wi-Fi) da tela principal'}
+                                type="button"
+                            >
+                                <Wifi size={14} />
+                            </button>
+                            <button
+                                className={`botao-icone ${qr.papel === 'app' ? 'botao-icone--papel-ativo' : ''}`}
+                                onClick={() => definirPapel(qr, 'app')}
+                                title={qr.papel === 'app' ? 'Remover do botao App da tela principal' : 'Usar no botao App da tela principal'}
+                                type="button"
+                            >
+                                <Smartphone size={14} />
+                            </button>
                             <button className="botao-icone botao-icone--erro" onClick={() => remover(qr.id)} title="Remover" type="button">
                                 <Trash2 size={14} />
                             </button>

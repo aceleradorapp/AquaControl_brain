@@ -14,25 +14,34 @@ export const MODULOS_ESP32 = [
         hostname: 'aquacontrol-sensor',
         caminhoCodigo: 'AquaControl_sensor/src/main.cpp',
         descricao:
-            'ESP32 DevKit dedicado a leitura de 7 sensores fisicos do aquario: 3x temperatura da agua, ' +
-            'temperatura/umidade do ar, fluxo de agua, pH e nivel de agua (fisicamente um sensor de ' +
-            'inclinacao, reaproveitado — ver 24-espc). Todos os sensores sao tolerantes a hot-plug: se um ' +
-            'sensor especifico falhar ou for desconectado, os outros 6 continuam funcionando normalmente ' +
-            '(nunca trava o loop principal por causa de um sensor ausente).',
+            'ESP32 DevKit dedicado a leitura de 10 sensores fisicos do aquario (27-espc, expandido do ' +
+            'conjunto original de 7 do 16-espc): 3x temperatura da agua, temperatura/umidade do ar, dois ' +
+            'canais de fluxo de agua, pH, nivel de agua (sensor de inclinacao reaproveitado — ver 24-espc), ' +
+            'nivel continuo do reservatorio e deteccao de vazamento. Todos os sensores sao tolerantes a ' +
+            'hot-plug (ou reportam "sempre conectado" quando o proprio tipo de sensor nao permite ' +
+            'distinguir ausencia de "sem sinal agora" — ver observacoes): nenhum sensor especifico travar ' +
+            'o loop principal se falhar ou for desconectado.',
         pinosEsquerda: [
             { pino: 'GPIO 18', sinal: 'OneWire (1-Wire)', componente: '3x DS18B20 — Temp. da Agua', tensao: '3.3V' },
             { pino: 'GPIO 19', sinal: 'Digital (protocolo proprio)', componente: 'DHT11 — Temp./Umidade do Ar', tensao: '3.3V/5V' },
-            { pino: 'GPIO 23', sinal: 'Interrupcao (FALLING)', componente: 'YF-S201 — Fluxo de Agua', tensao: '5V' },
+            { pino: 'GPIO 23', sinal: 'Interrupcao (FALLING)', componente: 'YF-S201 — Fluxo de Agua (canal 1)', tensao: '5V' },
+            { pino: 'GPIO 35', sinal: 'Interrupcao (FALLING, ADC1)', componente: 'Fluxo de Agua — Canal 2', tensao: '5V' },
+            { pino: 'GPIO 34', sinal: 'Analogico (ADC1, so leitura)', componente: 'Modulo de pH', tensao: '3.3V' },
         ],
         pinosDireita: [
-            { pino: 'GPIO 34', sinal: 'Analogico (ADC1, so leitura)', componente: 'Modulo de pH', tensao: '3.3V' },
             { pino: 'GPIO 21', sinal: 'Interrupcao (CHANGE)', componente: 'SW-520D — Nivel da Agua', tensao: '3.3V' },
+            { pino: 'GPIO 36', sinal: 'Analogico (ADC1 / VP, so leitura)', componente: 'Nivel Continuo do Reservatorio', tensao: '3.3V' },
+            { pino: 'GPIO 39', sinal: 'Analogico (ADC1 / VN, so leitura)', componente: 'Deteccao de Vazamento', tensao: '3.3V' },
             { pino: 'GPIO 2', sinal: 'Digital (saida)', componente: 'LED azul onboard (status Wi-Fi)', tensao: '3.3V' },
+            { pino: 'GPIO 4', sinal: 'Digital (saida, reservado)', componente: 'LED_RED — sinalizacao (nao usado ainda)', tensao: '3.3V' },
         ],
         observacoes: [
             'O barramento OneWire (GPIO 18) suporta ate 3 sensores DS18B20 simultaneos — os enderecos sao descobertos por varredura automatica no boot, sem precisar configurar endereco de fabrica.',
             'O modulo de pH PRECISA de calibracao manual com solucoes tampao (buffer pH 4.0 e 7.0) — os valores de fabrica no codigo sao so um ponto de partida.',
             'O sensor de "inclinacao" (GPIO 21) e fisicamente um SW-520D — reaproveitado pra indicar nivel de agua do aquario, nao tombamento (ver 24-espc).',
+            '27-espc: GPIOs 34-39 (pH, nivel continuo, vazamento) sao ADC1-only e NAO TEM resistor de pull interno — nenhum problema pra leitura analogica, mas o segundo canal de fluxo (GPIO 35, tambem nessa faixa) depende do proprio modulo sensor Hall ja ter pull-up embutido pra pulsos digitais limpos.',
+            '27-espc: nivel continuo do reservatorio e deteccao de vazamento sao sensores analogicos NOVOS — os limiares no codigo (ADC vazio/cheio, limiar de vazamento) sao um ponto de partida, PRECISAM de calibracao com o sensor fisico real instalado.',
+            'GPIO 4 (LED_RED) esta reservado no mapeamento de pinos mas ainda NAO tem logica de acionamento no firmware — hoje so o LED verde (GPIO 2, status Wi-Fi) esta implementado.',
         ],
     },
     {

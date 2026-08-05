@@ -12,6 +12,7 @@ export const ROTULOS_WIDGETS = {
     modulosControladores: 'Modulos de Controladores',
     qrcodes: 'QR Codes',
     systemLog: 'System Log',
+    sensoresDisplay: 'Sensores do Sistema',
 };
 
 // Modal "Personalizar Tela / Widgets" aberto pelo botão no Header — marca quais cards

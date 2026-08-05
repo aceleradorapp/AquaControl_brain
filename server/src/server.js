@@ -10,6 +10,7 @@ const { iniciarEnvioParaDisplay } = require('./services/telemetriaDisplayService
 const { iniciarSchedulerEngine } = require('./services/schedulerService');
 const { iniciarAutomacaoEquipamentos } = require('./services/automacaoEquipamentosService');
 const { iniciarManutencao } = require('./services/manutencaoService');
+const { iniciarDiagnosticoAgendado } = require('./services/diagnosticoService');
 
 const app = express();
 
@@ -74,3 +75,8 @@ iniciarAutomacaoEquipamentos();
 // 19-espc: retencao/limpeza de historico antigo (config em Configuracoes -> Armazenamento) —
 // ver manutencaoService.js.
 iniciarManutencao();
+
+// 31-espc: Diagnostico Completo agendado (1x por hora) + registro no System Log — ver
+// diagnosticoService.js. O mesmo checklist tambem pode ser disparado na hora via
+// POST /api/diagnostics/executar (botao na Central de Diagnostico).
+iniciarDiagnosticoAgendado();

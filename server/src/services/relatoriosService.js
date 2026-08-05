@@ -102,14 +102,18 @@ function obterRelatorioTelemetria(inicioSql, fimSql) {
         .prepare(
             `SELECT sensor_id, tipo, nome, valor, unidade, conectado, criado_em
              FROM historico_sensores
-             WHERE modulo_id = ? AND criado_em BETWEEN ? AND ? AND tipo != 'sensor_fluxo' AND tipo != 'sensor_inclinacao'
+             WHERE modulo_id = ? AND criado_em BETWEEN ? AND ?
+               AND tipo != 'sensor_fluxo' AND tipo != 'sensor_inclinacao' AND tipo != 'sensor_vazamento'
              ORDER BY criado_em ASC`
         )
         .all(moduloSensor.id, inicioSql, fimSql);
 
     const faixasSeguras = obterFaixasSeguras();
     const seriePorTimestamp = new Map();
-    const valoresPorGrupo = { agua: [], ar: [], umidade: [], ph: [] };
+    // 27-espc: "nivel" (nivel_agua, % continuo) entra aqui como mais um grupo numerico — ao
+    // contrario de "vazamento" (booleano, excluido da query acima e tratado so em
+    // obterRelatorioAlertas, mesmo idioma da inclinacao/fluxo).
+    const valoresPorGrupo = { agua: [], ar: [], umidade: [], ph: [], nivel: [] };
     const anomalias = [];
     let totalNumericoComFaixa = 0;
     let totalForaDaFaixa = 0;
@@ -135,10 +139,15 @@ function obterRelatorioTelemetria(inicioSql, fimSql) {
         else if (linha.sensor_id === 'temp_ar') valoresPorGrupo.ar.push(valor);
         else if (linha.sensor_id === 'umidade_ar') valoresPorGrupo.umidade.push(valor);
         else if (linha.sensor_id === 'ph_agua') valoresPorGrupo.ph.push(valor);
+        else if (linha.sensor_id === 'nivel_agua') valoresPorGrupo.nivel.push(valor);
 
         if (ehAgua) {
             rastreadorAgua.atualizar(linha.sensor_id, valor, true);
             const mediaAgua = rastreadorAgua.mediaAtual();
+            // Grava a media "ao vivo" dos sensores de agua ativos em CADA ponto da serie
+            // (nao so quando ha anomalia) — usado pelo widget "Historico Termico" do
+            // Dashboard, que mostra essa media como a linha principal do grafico.
+            if (mediaAgua !== null) seriePorTimestamp.get(linha.criado_em).agua_media = arredondar(mediaAgua, 2);
             const faixaAgua = faixasSeguras.temp_agua;
             if (mediaAgua !== null && faixaAgua) {
                 totalNumericoComFaixa++;
@@ -186,6 +195,7 @@ function obterRelatorioTelemetria(inicioSql, fimSql) {
             temperaturaAr: resumoNumerico(valoresPorGrupo.ar),
             umidadeAr: resumoNumerico(valoresPorGrupo.umidade),
             ph: resumoNumerico(valoresPorGrupo.ph),
+            nivelAgua: resumoNumerico(valoresPorGrupo.nivel),
             estabilidade,
         },
         faixasSeguras,
@@ -196,6 +206,35 @@ function obterRelatorioTelemetria(inicioSql, fimSql) {
 
 // --- Aba 2: Consumo & Vazao de Agua ------------------------------------------------------
 
+// 27-espc: pode haver mais de um canal de fluxo fisico (fluxo_agua = principal, fluxo_agua_2
+// = segundo canal) — cada "sensor_id" tem seu PROPRIO contador monotonico de volume
+// (volume_total_l), entao acumula/agrega por canal separadamente antes de resumir.
+function estadoCanalFluxoVazio() {
+    return { consumoTotalLitros: 0, anteriorVolumeTotal: null, litrosPorDia: new Map(), serieVazao: [] };
+}
+
+function resumirCanalFluxo(sensorId, canal) {
+    const vazoesAtivas = canal.serieVazao.filter((p) => p.vazao > 0).map((p) => p.vazao);
+    const picos = [...canal.serieVazao]
+        .filter((p) => p.vazao > 0)
+        .sort((a, b) => b.vazao - a.vazao)
+        .slice(0, 5);
+
+    return {
+        sensorId,
+        kpis: {
+            consumoTotalLitros: arredondar(canal.consumoTotalLitros, 2),
+            vazaoMediaAtiva: vazoesAtivas.length > 0 ? arredondar(media(vazoesAtivas), 2) : null,
+            vazaoMaxima: canal.serieVazao.length > 0 ? arredondar(Math.max(...canal.serieVazao.map((p) => p.vazao)), 2) : null,
+        },
+        volumePorDia: [...canal.litrosPorDia.entries()]
+            .map(([dia, litros]) => ({ dia, litros: arredondar(litros, 2) }))
+            .sort((a, b) => a.dia.localeCompare(b.dia)),
+        serieVazao: canal.serieVazao,
+        picos,
+    };
+}
+
 function obterRelatorioConsumoAgua(inicioSql, fimSql) {
     const moduloSensor = buscarPrimeiroModulo('telemetria');
     if (!moduloSensor) {
@@ -204,50 +243,54 @@ function obterRelatorioConsumoAgua(inicioSql, fimSql) {
 
     const linhas = db
         .prepare(
-            `SELECT valor, volume_total_l, criado_em
+            `SELECT sensor_id, valor, volume_total_l, criado_em
              FROM historico_sensores
-             WHERE modulo_id = ? AND sensor_id = 'fluxo_agua' AND conectado = 1 AND criado_em BETWEEN ? AND ?
+             WHERE modulo_id = ? AND tipo = 'sensor_fluxo' AND conectado = 1 AND criado_em BETWEEN ? AND ?
              ORDER BY criado_em ASC`
         )
         .all(moduloSensor.id, inicioSql, fimSql);
 
-    let consumoTotalLitros = 0;
-    let anteriorVolumeTotal = null;
-    const litrosPorDia = new Map();
-    const serieVazao = [];
+    const canais = new Map(); // sensor_id -> estadoCanalFluxoVazio()
 
     for (const linha of linhas) {
-        if (linha.valor !== null) serieVazao.push({ timestamp: linha.criado_em, vazao: Number(linha.valor) });
+        if (!canais.has(linha.sensor_id)) canais.set(linha.sensor_id, estadoCanalFluxoVazio());
+        const canal = canais.get(linha.sensor_id);
+
+        if (linha.valor !== null) canal.serieVazao.push({ timestamp: linha.criado_em, vazao: Number(linha.valor) });
 
         if (typeof linha.volume_total_l === 'number') {
-            if (anteriorVolumeTotal !== null) {
+            if (canal.anteriorVolumeTotal !== null) {
                 // Clampa deltas negativos a 0 — protege contra o contador do ESP zerar num
                 // reboot no meio do periodo, sem deixar o consumo total ficar negativo.
-                const delta = Math.max(0, linha.volume_total_l - anteriorVolumeTotal);
-                consumoTotalLitros += delta;
+                const delta = Math.max(0, linha.volume_total_l - canal.anteriorVolumeTotal);
+                canal.consumoTotalLitros += delta;
                 const dia = linha.criado_em.slice(0, 10);
-                litrosPorDia.set(dia, (litrosPorDia.get(dia) ?? 0) + delta);
+                canal.litrosPorDia.set(dia, (canal.litrosPorDia.get(dia) ?? 0) + delta);
             }
-            anteriorVolumeTotal = linha.volume_total_l;
+            canal.anteriorVolumeTotal = linha.volume_total_l;
         }
     }
 
-    const vazoesAtivas = serieVazao.filter((p) => p.vazao > 0).map((p) => p.vazao);
-    const picos = [...serieVazao]
-        .filter((p) => p.vazao > 0)
-        .sort((a, b) => b.vazao - a.vazao)
-        .slice(0, 5);
+    // "porCanal": um resumo por sensor_id de fluxo encontrado no periodo (fluxo_agua,
+    // fluxo_agua_2, ou qualquer outro que apareca no futuro) — pensado pro front-end iterar
+    // sem precisar saber quantos canais existem de antemao.
+    const porCanal = [...canais.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([sensorId, canal]) => resumirCanalFluxo(sensorId, canal));
+
+    // Compatibilidade: kpis/volumePorDia/serieVazao/picos continuam no NIVEL RAIZ, sempre
+    // referentes ao canal PRINCIPAL ("fluxo_agua") — quem ja consumia esse formato (ex.:
+    // RelatorioConsumoAgua.jsx antes do 27-espc) continua funcionando sem mudanca nenhuma;
+    // "porCanal" e so um acrescimo pra quem precisar do segundo canal.
+    const canalPrincipal = resumirCanalFluxo('fluxo_agua', canais.get('fluxo_agua') ?? estadoCanalFluxoVazio());
 
     return {
         disponivel: true,
-        kpis: {
-            consumoTotalLitros: arredondar(consumoTotalLitros, 2),
-            vazaoMediaAtiva: vazoesAtivas.length > 0 ? arredondar(media(vazoesAtivas), 2) : null,
-            vazaoMaxima: serieVazao.length > 0 ? arredondar(Math.max(...serieVazao.map((p) => p.vazao)), 2) : null,
-        },
-        volumePorDia: [...litrosPorDia.entries()].map(([dia, litros]) => ({ dia, litros: arredondar(litros, 2) })).sort((a, b) => a.dia.localeCompare(b.dia)),
-        serieVazao,
-        picos,
+        kpis: canalPrincipal.kpis,
+        volumePorDia: canalPrincipal.volumePorDia,
+        serieVazao: canalPrincipal.serieVazao,
+        picos: canalPrincipal.picos,
+        porCanal,
     };
 }
 
@@ -402,6 +445,17 @@ async function obterRelatorioAlertas(inicioSql, fimSql) {
                 log.push({ timestamp: linha.criado_em, origem: 'ESP_Sensor', categoria: 'Alerta de Nivel de Agua', descricao: `${linha.nome}: nivel de agua fora do esperado`, sensorId: linha.sensor_id, resolvido: null });
             } else if (linha.valor === 'false') {
                 marcarResolvido('inclinacao', 'Alerta de Nivel de Agua', linha.criado_em);
+            }
+            continue;
+        }
+
+        // 27-espc: sensor de vazamento — mesmo idioma de transicao do "Alerta de Nivel de
+        // Agua" acima (loga so quando entra/sai do estado de agua detectada).
+        if (linha.sensor_id === 'vazamento' && conectadoAgora) {
+            if (linha.valor === 'true') {
+                log.push({ timestamp: linha.criado_em, origem: 'ESP_Sensor', categoria: 'Alerta de Vazamento', descricao: `${linha.nome}: agua detectada`, sensorId: linha.sensor_id, resolvido: null });
+            } else if (linha.valor === 'false') {
+                marcarResolvido('vazamento', 'Alerta de Vazamento', linha.criado_em);
             }
             continue;
         }

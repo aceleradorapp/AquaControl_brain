@@ -8,8 +8,10 @@ AquaControl_Brain is the central webservice for the AquaControl aquarium automat
 a Node.js/Express/SQLite backend (`server/`) + a React/Vite dashboard (`client/`). It's the
 intermediary between three sibling ESP32 firmware projects in the same `aquario/` folder:
 `AquaControl_Hardware` (16-channel relay board, plain GPIO — see its own `01-espc-geral/11_*`/`12_*`
-specs), `AquaControl_sensor` (7 real sensors — DS18B20 water temp ×3, DHT11 air temp+humidity,
-YF-S201 flow, analog pH, SW-520D tilt — see `01-espc-geral/16_spec_AquaControl_sensor.md`), and
+specs), `AquaControl_sensor` (10 real sensors as of 27-espc — DS18B20 water temp ×3, DHT11 air
+temp+humidity, YF-S201 flow ×2 channels, analog pH, SW-520D tilt (repurposed as water level,
+24-espc), continuous reservoir level, and leak detection — see
+`01-espc-geral/16_spec_AquaControl_sensor.md` and `01-espc-geral/27_expansao_sensores_aquacontrol_sensor.md`), and
 `AquaControl_OS` (the CYD touchscreen Display). None of the ESP32s talk to each other directly —
 the Brain polls Hardware for relay state (proxied to the dashboard, no longer forwarded to the
 Display's main screen as of 16-espc), polls the Sensor module for real telemetry and pushes a

@@ -1,7 +1,7 @@
 const express = require('express');
 const { listarModulos, criarModulo, atualizarModulo, deletarModulo } = require('../controllers/modulosController');
 const { buscarPortas, salvarPortas } = require('../controllers/portasMapeamentoController');
-const { consultarReles, acionarReles, consultarStatusEsp, consultarSensoresEsp, configurarDispositivoEsp } = require('../controllers/relesController');
+const { consultarReles, acionarReles, consultarStatusEsp, consultarSensoresEsp, configurarDispositivoEsp, configurarProtecaoEsp, testarArcosEsp } = require('../controllers/relesController');
 const { listarTemas, criarTema } = require('../controllers/temasController');
 
 const router = express.Router();
@@ -33,6 +33,14 @@ router.get('/:id/sensores', consultarSensoresEsp);
 // POST /api/config-dispositivo do proprio ESP32 (12-espc: hostname editavel) — usado pelo
 // Modal de Editar Controlador em Modulos de Controladores.
 router.post('/:id/config-dispositivo', configurarDispositivoEsp);
+
+// POST /api/config-protecao do proprio ESP32 (Tela de Descanso do Display: tempo + cor) —
+// usado pelo botao "Enviar ao Display" nas Configuracoes Globais.
+router.post('/:id/config-protecao', configurarProtecaoEsp);
+
+// POST /api/teste-arcos do proprio ESP32 (07-espc: varredura de teste dos arcos agua/ar/
+// umidade) — usado pelo botao "Testar Sensores no Display" no modal Diagnostico Completo.
+router.post('/:id/teste-arcos', testarArcosEsp);
 
 // Temas (14-espc): grupos nomeados de relés com estado definido, escolhidos a partir do
 // Mapeamento de Portas — ver 01-espc-geral/14_menu_de_acoes.md. Deletar/aplicar um tema
