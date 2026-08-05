@@ -66,6 +66,11 @@
     justify-content: flex-end;
     margin-top: var(--espaco-md);
 }
+.modal-hud__acoes--espacado {
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--espaco-sm);
+}
 
 /* --- Mapeamento de portas (16 saidas) --- */
 .mapeamento-portas__grade {
@@ -76,14 +81,43 @@
 
 .mapeamento-portas__linha {
     display: grid;
-    grid-template-columns: 32px 1fr auto auto;
+    grid-template-columns: 32px 1fr 78px auto auto;
     align-items: center;
     gap: var(--espaco-sm);
     padding: 6px;
     border: 1px solid var(--cor-borda);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .mapeamento-portas__linha--desativada {
     opacity: 0.5;
+}
+/* 36-espc: feedback visual do auto-save por linha — some sozinho depois de um tempo
+   curto (ver o timeout em ModalMapeamentoPortas.jsx), sem precisar de nenhum icone extra
+   disputando espaco na grade ja apertada. */
+.mapeamento-portas__linha--salvando {
+    border-color: var(--cor-secundaria);
+}
+.mapeamento-portas__linha--salvo {
+    border-color: var(--cor-sucesso);
+    box-shadow: 0 0 6px rgba(0, 255, 157, 0.35);
+}
+.mapeamento-portas__linha--erro {
+    border-color: var(--cor-erro);
+    box-shadow: 0 0 6px rgba(255, 56, 96, 0.35);
+}
+
+/* 36-espc: potencia nominal (W) declarada por porta, usada so pra estimar consumo de
+   energia — ver RelatorioConsumoEnergia.jsx. E um <input type="text"> mascarado (nao
+   type="number") — o valor exibido ja vem com o "W" embutido (ex.: "100 W", ver
+   formatarPotencia em ModalMapeamentoPortas.jsx), entao nao tem spinner nativo pra remover
+   nem sufixo flutuante pra sobrepor o numero digitado (era o que acontecia na versao
+   anterior, com <input type="number"> + rotulo "W" por cima). */
+.mapeamento-portas__potencia {
+    width: 100%;
+    text-align: right;
+}
+.mapeamento-portas__aviso-autosave {
+    opacity: 0.75;
 }
 
 .mapeamento-portas__indice {
@@ -210,6 +244,54 @@
     color: var(--cor-erro);
     border-color: var(--cor-erro);
     box-shadow: 0 0 6px rgba(255, 56, 96, 0.4);
+}
+
+/* 35-espc: Tema Tempestade — mapeamento de 8 lampadas -> rele (combobox), no lugar da lista
+   de checkboxes de um tema estatico. */
+.modal-temas__aviso-tempestade {
+    margin-bottom: var(--espaco-md);
+    line-height: 1.5;
+}
+.modal-temas__linha-lampada {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--espaco-sm);
+    padding: 8px 10px;
+    border: 1px solid var(--cor-borda);
+}
+.modal-temas__linha-lampada .config-select {
+    width: auto;
+    min-width: 180px;
+}
+.modal-temas__lampada-rotulo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.modal-temas__cor-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+}
+.modal-temas__intervalo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--espaco-md);
+    margin-bottom: var(--espaco-md);
+}
+.modal-temas__intervalo-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 220px;
+}
+.modal-temas__intervalo-campo input[type='range'] {
+    accent-color: var(--cor-primaria);
+    width: 100%;
 }
 
 /* --- Menu de Acoes (14-espc) --- */
@@ -428,6 +510,11 @@
         order: 2;
         flex: 1 1 100%;
     }
+    .mapeamento-portas__linha .mapeamento-portas__potencia {
+        order: 2;
+        flex: 0 0 90px;
+        text-align: left;
+    }
     .mapeamento-portas__linha > button:not(.mapeamento-portas__status) {
         order: 3;
     }
@@ -435,4 +522,54 @@
         order: 4;
         margin-left: auto;
     }
+}
+
+/* --- Recorte de imagem (Gestao de Fauna, ver ModalCortarImagem.jsx) --- */
+.cortar-imagem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--espaco-md);
+}
+.cortar-imagem__area {
+    position: relative;
+    border: 1px solid var(--cor-borda-forte);
+    background: var(--cor-fundo-elevado);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cortar-imagem__canvas {
+    cursor: grab;
+    /* Impede o scroll da pagina durante o arrasto no celular — sem isso o navegador tenta
+       rolar a tela inteira toda vez que o usuario arrasta a imagem pra posicionar. */
+    touch-action: none;
+}
+.cortar-imagem__canvas:active {
+    cursor: grabbing;
+}
+.cortar-imagem__zoom {
+    display: flex;
+    align-items: center;
+    gap: var(--espaco-sm);
+    width: 100%;
+    max-width: 300px;
+    color: var(--cor-texto-secundario);
+}
+.cortar-imagem__zoom input[type='range'] {
+    flex: 1;
+    accent-color: var(--cor-primaria);
+}
+.cortar-imagem__dica {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    text-align: left;
+    width: 100%;
+    max-width: 300px;
+}
+.cortar-imagem__dica svg {
+    flex-shrink: 0;
+    margin-top: 2px;
 }

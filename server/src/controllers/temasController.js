@@ -1,8 +1,33 @@
 const db = require('../database/db');
 const { aplicarRelesNoModulo } = require('../services/relesService');
 const { ativarOverride, desativarOverrideEResincronizar } = require('../services/schedulerService');
+const { iniciarSessaoTempestade, encerrarSessaoTempestade } = require('../services/tempestadeService');
 
 const TOTAL_PORTAS = 16;
+const TOTAL_LAMPADAS = 8; // 35-espc — posicoes fisicas da calha, ver tema_tempestade_lampadas
+// 35-espc: mesmos defaults de tempestadeService.js (em segundos aqui, o motor usa ms) — usados
+// so pra formatarTema devolver numeros concretos pra UI quando o tema ainda nao tem um
+// intervalo customizado salvo (tempestade_intervalo_min_s/max_s = NULL).
+const INTERVALO_MIN_PADRAO_S = 15;
+const INTERVALO_MAX_PADRAO_S = 60;
+
+// Valida o par min/max (segundos) mandado pro tema tempestade — ambos ausentes/vazios =
+// "usa o padrao do sistema" (NULL, NULL). Piso de 3s (nao deixa virar uma metralhadora de
+// raios sem sentido) e teto de 3600s (1h, sanidade) — min tem que ser <= max.
+function normalizarIntervalos(intervaloMinSegundos, intervaloMaxSegundos) {
+    const minBruto = intervaloMinSegundos === '' || intervaloMinSegundos === undefined || intervaloMinSegundos === null ? null : Number(intervaloMinSegundos);
+    const maxBruto = intervaloMaxSegundos === '' || intervaloMaxSegundos === undefined || intervaloMaxSegundos === null ? null : Number(intervaloMaxSegundos);
+
+    if (minBruto === null && maxBruto === null) return { min: null, max: null, erro: null };
+
+    const min = Number.isFinite(minBruto) ? Math.round(minBruto) : null;
+    const max = Number.isFinite(maxBruto) ? Math.round(maxBruto) : null;
+
+    if (min === null || max === null || min < 3 || max > 3600 || min > max) {
+        return { min: null, max: null, erro: 'Intervalo minimo/maximo entre raios invalido (minimo >= 3s, maximo <= 3600s, minimo <= maximo).' };
+    }
+    return { min, max, erro: null };
+}
 
 function buscarModulo(id) {
     return db.prepare('SELECT id FROM modulos WHERE id = ?').get(id);
@@ -13,15 +38,70 @@ function obterTemaAtivoId(moduloId) {
     return linha?.tema_ativo_id ?? null;
 }
 
+// 35-espc: mapeamento das 8 lampadas -> indice de rele, so pra temas tipo_efeito='tempestade'.
+// "nomeRele" e resolvido aqui (join em JS, nao SQL) so pra a UI mostrar o nome sem um
+// segundo fetch — a fonte de verdade do nome continua sendo portas_mapeamento.
+function buscarLampadasTempestade(temaId, moduloId) {
+    const linhas = db
+        .prepare('SELECT posicao_lampada AS posicaoLampada, posicao_indice_rele AS posicaoIndiceRele FROM tema_tempestade_lampadas WHERE tema_id = ? ORDER BY posicao_lampada')
+        .all(temaId);
+    const portas = db.prepare('SELECT posicao_indice, nome_personalizado FROM portas_mapeamento WHERE modulo_id = ?').all(moduloId);
+    const nomePorIndice = new Map(portas.map((p) => [p.posicao_indice, p.nome_personalizado]));
+
+    return linhas.map((l) => ({
+        ...l,
+        nomeRele: l.posicaoIndiceRele !== null ? nomePorIndice.get(l.posicaoIndiceRele) || null : null,
+    }));
+}
+
+// Substitui as 8 linhas de tema_tempestade_lampadas pelo mapeamento novo (mesmo "delete-all +
+// insert" de atualizarTema pra temas_reles) — sempre grava as 8 posicoes, mesmo as nao
+// mapeadas (posicao_indice_rele = NULL), pra "montarMapeamentoCompleto" nunca precisar
+// preencher default no lado do controller (mesmo espirito de portasMapeamentoController.js).
+function salvarLampadasTempestade(temaId, lampadasRecebidas) {
+    const mapa = new Map();
+    if (Array.isArray(lampadasRecebidas)) {
+        for (const l of lampadasRecebidas) {
+            const posicao = Number(l.posicaoLampada);
+            if (!Number.isInteger(posicao) || posicao < 1 || posicao > TOTAL_LAMPADAS) continue;
+
+            const bruto = l.posicaoIndiceRele;
+            const indiceRele = bruto === '' || bruto === undefined || bruto === null ? null : Number(bruto);
+            const indiceValido = indiceRele !== null && Number.isInteger(indiceRele) && indiceRele >= 0 && indiceRele < TOTAL_PORTAS ? indiceRele : null;
+            mapa.set(posicao, indiceValido);
+        }
+    }
+
+    db.exec('BEGIN');
+    try {
+        db.prepare('DELETE FROM tema_tempestade_lampadas WHERE tema_id = ?').run(temaId);
+        const inserir = db.prepare('INSERT INTO tema_tempestade_lampadas (tema_id, posicao_lampada, posicao_indice_rele) VALUES (?, ?, ?)');
+        for (let posicao = 1; posicao <= TOTAL_LAMPADAS; posicao++) {
+            inserir.run(temaId, posicao, mapa.has(posicao) ? mapa.get(posicao) : null);
+        }
+        db.exec('COMMIT');
+    } catch (erro) {
+        db.exec('ROLLBACK');
+        throw erro;
+    }
+}
+
 function formatarTema(tema, relesLinhas, temaAtivoId) {
-    return {
+    const formatado = {
         id: tema.id,
         moduloId: tema.modulo_id,
         nome: tema.nome,
         criadoEm: tema.criado_em,
         ativo: tema.id === temaAtivoId,
+        tipoEfeito: tema.tipo_efeito,
         reles: relesLinhas.map((r) => ({ posicaoIndice: r.posicao_indice, estado: r.estado })),
     };
+    if (tema.tipo_efeito === 'tempestade') {
+        formatado.lampadas = buscarLampadasTempestade(tema.id, tema.modulo_id);
+        formatado.intervaloMinSegundos = tema.tempestade_intervalo_min_s ?? INTERVALO_MIN_PADRAO_S;
+        formatado.intervaloMaxSegundos = tema.tempestade_intervalo_max_s ?? INTERVALO_MAX_PADRAO_S;
+    }
+    return formatado;
 }
 
 function buscarRelesDoTema(temaId) {
@@ -45,32 +125,52 @@ function listarTemas(req, res) {
 // "reles" só precisa ter as portas que fazem PARTE do tema — não as 16 (ver aplicarTema
 // abaixo: aplicar um tema só sobrescreve os índices presentes nele, o resto fica como está).
 // Um tema recém-criado nunca começa ativo.
+//
+// 35-espc: "tipoEfeito" ('estatico' default | 'tempestade') decide qual dos dois formatos o
+// body carrega — um tema tempestade manda "lampadas" (mapeamento de 8 posicoes -> rele) em
+// vez de "reles" (ele não tem um estado fixo ligado/desligado, ver tempestadeService.js).
 function criarTema(req, res) {
     const { id } = req.params;
     if (!buscarModulo(id)) {
         return res.status(404).json({ erro: 'Modulo nao encontrado.' });
     }
 
-    const { nome, reles } = req.body;
-    if (!nome || !Array.isArray(reles) || reles.length === 0) {
-        return res.status(400).json({ erro: 'Campos "nome" e "reles" (array nao vazio) sao obrigatorios.' });
+    const { nome, reles, tipoEfeito, lampadas, intervaloMinSegundos, intervaloMaxSegundos } = req.body;
+    const tipo = tipoEfeito === 'tempestade' ? 'tempestade' : 'estatico';
+
+    if (!nome) {
+        return res.status(400).json({ erro: 'Campo "nome" e obrigatorio.' });
+    }
+    if (tipo === 'estatico' && (!Array.isArray(reles) || reles.length === 0)) {
+        return res.status(400).json({ erro: 'Campo "reles" (array nao vazio) e obrigatorio pra um tema estatico.' });
     }
 
-    const resultado = db.prepare('INSERT INTO temas (modulo_id, nome) VALUES (?, ?)').run(id, nome);
+    const intervalos = tipo === 'tempestade' ? normalizarIntervalos(intervaloMinSegundos, intervaloMaxSegundos) : { min: null, max: null, erro: null };
+    if (intervalos.erro) {
+        return res.status(400).json({ erro: intervalos.erro });
+    }
+
+    const resultado = db
+        .prepare('INSERT INTO temas (modulo_id, nome, tipo_efeito, tempestade_intervalo_min_s, tempestade_intervalo_max_s) VALUES (?, ?, ?, ?, ?)')
+        .run(id, nome, tipo, intervalos.min, intervalos.max);
     const temaId = resultado.lastInsertRowid;
 
-    const inserir = db.prepare('INSERT INTO temas_reles (tema_id, posicao_indice, estado) VALUES (?, ?, ?)');
-    db.exec('BEGIN');
-    try {
-        for (const r of reles) {
-            const indice = Number(r.posicaoIndice);
-            if (!Number.isInteger(indice) || indice < 0 || indice >= TOTAL_PORTAS) continue;
-            inserir.run(temaId, indice, r.estado ? 1 : 0);
+    if (tipo === 'estatico') {
+        const inserir = db.prepare('INSERT INTO temas_reles (tema_id, posicao_indice, estado) VALUES (?, ?, ?)');
+        db.exec('BEGIN');
+        try {
+            for (const r of reles) {
+                const indice = Number(r.posicaoIndice);
+                if (!Number.isInteger(indice) || indice < 0 || indice >= TOTAL_PORTAS) continue;
+                inserir.run(temaId, indice, r.estado ? 1 : 0);
+            }
+            db.exec('COMMIT');
+        } catch (erro) {
+            db.exec('ROLLBACK');
+            throw erro;
         }
-        db.exec('COMMIT');
-    } catch (erro) {
-        db.exec('ROLLBACK');
-        throw erro;
+    } else {
+        salvarLampadasTempestade(temaId, lampadas);
     }
 
     const tema = db.prepare('SELECT * FROM temas WHERE id = ?').get(temaId);
@@ -82,6 +182,10 @@ function criarTema(req, res) {
 // edição no client já manda o conjunto completo de novo). Não reaplica nada nos relés de
 // verdade sozinho — editar só muda a definição salva; se o usuário quiser refletir a
 // mudança no hardware, clica em aplicar de novo.
+// 35-espc: "tipoEfeito" no body decide o formato; se omitido, mantem o tipo que o tema ja
+// tinha (nao muda de estatico<->tempestade por acidente so porque o form nao mandou o campo).
+// Trocar de tipo limpa a tabela do tipo ANTERIOR (temas_reles ou tema_tempestade_lampadas) —
+// nunca deixa dado orfao do formato antigo.
 function atualizarTema(req, res) {
     const { id } = req.params;
     const temaExistente = db.prepare('SELECT * FROM temas WHERE id = ?').get(id);
@@ -89,26 +193,49 @@ function atualizarTema(req, res) {
         return res.status(404).json({ erro: 'Tema nao encontrado.' });
     }
 
-    const { nome, reles } = req.body;
-    if (!nome || !Array.isArray(reles) || reles.length === 0) {
-        return res.status(400).json({ erro: 'Campos "nome" e "reles" (array nao vazio) sao obrigatorios.' });
+    const { nome, reles, tipoEfeito, lampadas, intervaloMinSegundos, intervaloMaxSegundos } = req.body;
+    const tipo = tipoEfeito === 'tempestade' || tipoEfeito === 'estatico' ? tipoEfeito : temaExistente.tipo_efeito;
+
+    if (!nome) {
+        return res.status(400).json({ erro: 'Campo "nome" e obrigatorio.' });
+    }
+    if (tipo === 'estatico' && (!Array.isArray(reles) || reles.length === 0)) {
+        return res.status(400).json({ erro: 'Campo "reles" (array nao vazio) e obrigatorio pra um tema estatico.' });
+    }
+
+    const intervalos = tipo === 'tempestade' ? normalizarIntervalos(intervaloMinSegundos, intervaloMaxSegundos) : { min: null, max: null, erro: null };
+    if (intervalos.erro) {
+        return res.status(400).json({ erro: intervalos.erro });
     }
 
     db.exec('BEGIN');
     try {
-        db.prepare('UPDATE temas SET nome = ? WHERE id = ?').run(nome, id);
+        db.prepare('UPDATE temas SET nome = ?, tipo_efeito = ?, tempestade_intervalo_min_s = ?, tempestade_intervalo_max_s = ? WHERE id = ?').run(
+            nome,
+            tipo,
+            intervalos.min,
+            intervalos.max,
+            id
+        );
         db.prepare('DELETE FROM temas_reles WHERE tema_id = ?').run(id);
 
-        const inserir = db.prepare('INSERT INTO temas_reles (tema_id, posicao_indice, estado) VALUES (?, ?, ?)');
-        for (const r of reles) {
-            const indice = Number(r.posicaoIndice);
-            if (!Number.isInteger(indice) || indice < 0 || indice >= TOTAL_PORTAS) continue;
-            inserir.run(id, indice, r.estado ? 1 : 0);
+        if (tipo === 'estatico') {
+            db.prepare('DELETE FROM tema_tempestade_lampadas WHERE tema_id = ?').run(id);
+            const inserir = db.prepare('INSERT INTO temas_reles (tema_id, posicao_indice, estado) VALUES (?, ?, ?)');
+            for (const r of reles) {
+                const indice = Number(r.posicaoIndice);
+                if (!Number.isInteger(indice) || indice < 0 || indice >= TOTAL_PORTAS) continue;
+                inserir.run(id, indice, r.estado ? 1 : 0);
+            }
         }
         db.exec('COMMIT');
     } catch (erro) {
         db.exec('ROLLBACK');
         throw erro;
+    }
+
+    if (tipo === 'tempestade') {
+        salvarLampadasTempestade(id, lampadas);
     }
 
     const temaAtualizado = db.prepare('SELECT * FROM temas WHERE id = ?').get(id);
@@ -196,8 +323,20 @@ async function aplicarTema(req, res) {
     // hora, ver schedulerService.js.
     if (novoTemaAtivoId) {
         ativarOverride(tema.modulo_id, tema.nome);
+        // 35-espc: tema tempestade nao tem reles fixos (o array aplicado acima e um no-op) —
+        // abre a sessao JA (captura o snapshot "antes" + toca a Sequencia de Abertura) em vez
+        // de esperar o proximo ciclo de 5s; tempestadeService.js assume os proximos eventos
+        // sozinho a partir dai. Fire-and-forget: nao trava a resposta HTTP.
+        if (tema.tipo_efeito === 'tempestade') {
+            iniciarSessaoTempestade(tema.modulo_id, tema.id);
+        }
     } else {
         await desativarOverrideEResincronizar(tema.modulo_id, tema.nome);
+        // 35-espc: fecha a sessao JA (cancela rajada em andamento + restaura as lampadas ao
+        // estado de antes da ativacao) em vez de esperar o proximo ciclo de 5s. Fire-and-forget.
+        if (tema.tipo_efeito === 'tempestade') {
+            encerrarSessaoTempestade(tema.modulo_id);
+        }
     }
 
     res.json({ disponivel: true, reles: resultado.reles, temaAtivoId: novoTemaAtivoId });

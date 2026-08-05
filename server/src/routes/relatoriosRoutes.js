@@ -1,5 +1,5 @@
 const express = require('express');
-const { telemetria, consumoAgua, automacao, alertas, sensorHistorico } = require('../controllers/relatoriosController');
+const { telemetria, consumoAgua, automacao, alertas, energia, sensorHistorico } = require('../controllers/relatoriosController');
 
 const router = express.Router();
 
@@ -9,6 +9,7 @@ router.get('/telemetria', telemetria);
 router.get('/consumo-agua', consumoAgua);
 router.get('/automacao', automacao);
 router.get('/alertas', alertas);
+router.get('/energia', energia); // 36-espc
 
 // Historico recente de um sensor (23-espc, Central de Diagnostico) — ver
 // ModalDetalheSensor.jsx.

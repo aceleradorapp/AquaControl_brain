@@ -1090,6 +1090,25 @@ export default function ModalConfiguracoes({
                                         </p>
                                     </CartaoSecao>
                                 )}
+
+                                {corresponde('Tarifa', 'Energia', 'kWh', 'Consumo', 'Custo') && (
+                                    <CartaoSecao titulo="Tarifa de Energia">
+                                        <p className="hud-tag config-nota">
+                                            Usada so pra converter o consumo ESTIMADO (potencia declarada em "Mapear Saidas"/"Editar Controlador"
+                                            x tempo ligado) em custo em R$, na aba "Energia" da Central de Relatorios. Em branco ou zero, o
+                                            relatorio mostra so kWh, sem custo.
+                                        </p>
+                                        <LinhaConfiguracao titulo="Preco do kWh">
+                                            <CampoNumero
+                                                valor={config.tarifa_energia_kwh}
+                                                onChange={(v) => atualizarConfig('tarifa_energia_kwh', v)}
+                                                unidade="R$"
+                                                min={0}
+                                                step={0.01}
+                                            />
+                                        </LinhaConfiguracao>
+                                    </CartaoSecao>
+                                )}
                             </>
                         )}
 

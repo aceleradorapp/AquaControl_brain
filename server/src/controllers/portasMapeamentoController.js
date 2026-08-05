@@ -22,6 +22,9 @@ function montarMapeamentoCompleto(linhasSalvas) {
             nomePersonalizado: linha?.nome_personalizado ?? '',
             habilitado: linha ? !!linha.habilitado : true,
             descricao: linha?.descricao ?? '',
+            // 36-espc: potencia nominal (W) declarada pelo usuario, pro relatorio de Energia
+            // estimar consumo — null = nao configurada, fica fora do calculo.
+            potenciaWatts: linha?.potencia_watts ?? null,
         });
     }
 
@@ -60,12 +63,13 @@ function salvarPortas(req, res) {
     }
 
     const upsert = db.prepare(`
-        INSERT INTO portas_mapeamento (modulo_id, posicao_indice, nome_personalizado, habilitado, descricao)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO portas_mapeamento (modulo_id, posicao_indice, nome_personalizado, habilitado, descricao, potencia_watts)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT (modulo_id, posicao_indice)
         DO UPDATE SET nome_personalizado = excluded.nome_personalizado,
                       habilitado = excluded.habilitado,
-                      descricao = excluded.descricao
+                      descricao = excluded.descricao,
+                      potencia_watts = excluded.potencia_watts
     `);
 
     db.exec('BEGIN');
@@ -74,7 +78,12 @@ function salvarPortas(req, res) {
             const indice = Number(porta.posicaoIndice);
             if (!Number.isInteger(indice) || indice < 0 || indice >= TOTAL_PORTAS) continue;
 
-            upsert.run(id, indice, porta.nomePersonalizado || '', porta.habilitado === false ? 0 : 1, porta.descricao || '');
+            const potenciaWatts = porta.potenciaWatts === '' || porta.potenciaWatts === undefined || porta.potenciaWatts === null
+                ? null
+                : Number(porta.potenciaWatts);
+            const potenciaValida = potenciaWatts !== null && Number.isFinite(potenciaWatts) && potenciaWatts >= 0 ? potenciaWatts : null;
+
+            upsert.run(id, indice, porta.nomePersonalizado || '', porta.habilitado === false ? 0 : 1, porta.descricao || '', potenciaValida);
         }
         db.exec('COMMIT');
     } catch (erro) {

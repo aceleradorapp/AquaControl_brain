@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Fish, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Fish, ImagePlus, Pencil, Plus, Trash2, X } from 'lucide-react';
 import ModalHud from './ModalHud';
+import ModalCortarImagem from './ModalCortarImagem';
 import { LinhaConfiguracao } from './CamposConfiguracao';
 import { CHAVE_TOKEN_MASTER } from '../App';
+
+const TAMANHO_MAXIMO_ARQUIVO_BYTES = 15 * 1024 * 1024; // 15MB — generoso, a foto e comprimida no recorte de qualquer jeito
 
 // Modulo de Gestao de Fauna (35-espc, especificacao numerada "34") — CRUD completo da tabela
 // "fauna" (ver faunaController.js), aberto pelo Menu de Acoes ("Gestao de Fauna"). Escrita
@@ -36,6 +39,9 @@ export default function ModalGestaoFauna({ aberto, onFechar, registrarLog }) {
     const [campos, setCampos] = useState(CAMPO_VAZIO);
     const [erro, setErro] = useState('');
     const [salvando, setSalvando] = useState(false);
+    const [arquivoParaCortar, setArquivoParaCortar] = useState(null);
+    const [modalCortarAberto, setModalCortarAberto] = useState(false);
+    const inputArquivoRef = useRef(null);
 
     useEffect(() => {
         if (!aberto) return;
@@ -78,6 +84,36 @@ export default function ModalGestaoFauna({ aberto, onFechar, registrarLog }) {
 
     function atualizarCampo(campo, valor) {
         setCampos((atual) => ({ ...atual, [campo]: valor }));
+    }
+
+    // Upload + recorte da foto: nao existe endpoint de upload nenhum neste projeto ainda —
+    // em vez de criar infraestrutura nova (multer, pasta de uploads, rota estatica), o
+    // recorte (ModalCortarImagem.jsx) ja devolve a imagem PRONTA como um data: URL JPEG
+    // comprimido, que vai direto no MESMO campo "imagemUrl" que ja aceitava URL colada —
+    // zero mudanca no backend, `<img src>` aceita data: URL igual a qualquer outra.
+    function aoEscolherArquivo(evento) {
+        const arquivo = evento.target.files?.[0];
+        evento.target.value = ''; // permite escolher o MESMO arquivo de novo depois (senao o onChange nao dispara)
+        if (!arquivo) return;
+
+        if (!arquivo.type.startsWith('image/')) {
+            setErro('Escolha um arquivo de imagem.');
+            return;
+        }
+        if (arquivo.size > TAMANHO_MAXIMO_ARQUIVO_BYTES) {
+            setErro('Imagem muito grande (maximo 15MB).');
+            return;
+        }
+
+        setErro('');
+        setArquivoParaCortar(arquivo);
+        setModalCortarAberto(true);
+    }
+
+    function aoConfirmarCorte(dataUrlRecortado) {
+        atualizarCampo('imagemUrl', dataUrlRecortado);
+        setModalCortarAberto(false);
+        setArquivoParaCortar(null);
     }
 
     async function salvar() {
@@ -190,11 +226,37 @@ export default function ModalGestaoFauna({ aberto, onFechar, registrarLog }) {
                         value={campos.comportamento}
                         onChange={(e) => atualizarCampo('comportamento', e.target.value)}
                     />
+                    <div className="fauna-foto">
+                        {campos.imagemUrl ? (
+                            <img src={campos.imagemUrl} alt="Previa da foto" className="fauna-foto__previa" />
+                        ) : (
+                            <div className="fauna-foto__placeholder">
+                                <Fish size={22} />
+                            </div>
+                        )}
+                        <div className="fauna-foto__acoes">
+                            <input
+                                ref={inputArquivoRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={aoEscolherArquivo}
+                                style={{ display: 'none' }}
+                            />
+                            <button className="botao-primario" type="button" onClick={() => inputArquivoRef.current?.click()}>
+                                <ImagePlus size={14} /> {campos.imagemUrl ? 'Trocar Foto' : 'Enviar Foto'}
+                            </button>
+                            {campos.imagemUrl && (
+                                <button className="botao-icone botao-icone--erro" type="button" aria-label="Remover foto" onClick={() => atualizarCampo('imagemUrl', '')}>
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
                     <input
                         className="hud-input"
                         type="text"
-                        placeholder="URL da Imagem (opcional — sem isso mostra um icone ilustrativo)"
-                        value={campos.imagemUrl}
+                        placeholder="...ou cole a URL de uma imagem (opcional — sem nada mostra um icone ilustrativo)"
+                        value={campos.imagemUrl.startsWith('data:') ? '' : campos.imagemUrl}
                         onChange={(e) => atualizarCampo('imagemUrl', e.target.value)}
                     />
                     {erro && <p className="mensagem-erro hud-tag">{erro}</p>}
@@ -227,6 +289,13 @@ export default function ModalGestaoFauna({ aberto, onFechar, registrarLog }) {
                     <Fish size={14} /> A lista aparece na Aba "Moradores" da Pagina de Visitante assim que houver especies aqui.
                 </p>
             )}
+
+            <ModalCortarImagem
+                aberto={modalCortarAberto}
+                arquivo={arquivoParaCortar}
+                onFechar={() => setModalCortarAberto(false)}
+                onConfirmar={aoConfirmarCorte}
+            />
         </ModalHud>
     );
 }

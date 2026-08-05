@@ -24,6 +24,7 @@ import ModalHud from './ModalHud';
 export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFechar, onSalvo, onRenomeadoSensores, registrarLog }) {
     const [nome, setNome] = useState('');
     const [hostname, setHostname] = useState('');
+    const [potenciaBaseWatts, setPotenciaBaseWatts] = useState('');
     const [salvando, setSalvando] = useState(false);
     const [reenviando, setReenviando] = useState(false);
     const [sensores, setSensores] = useState([]);
@@ -37,6 +38,7 @@ export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFecha
         if (!aberto || !modulo) return;
         setNome(modulo.nome);
         setHostname(hostnameAtual ?? '');
+        setPotenciaBaseWatts(modulo.potencia_base_watts ?? '');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aberto, modulo?.id]);
 
@@ -78,17 +80,22 @@ export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFecha
         try {
             let moduloAtualizado = modulo;
 
-            if (nome.trim() !== modulo.nome) {
+            const potenciaBaseNormalizada = potenciaBaseWatts === '' ? null : Number(potenciaBaseWatts);
+            const potenciaBaseMudou = potenciaBaseNormalizada !== (modulo.potencia_base_watts ?? null);
+            const nomeMudou = nome.trim() !== modulo.nome;
+
+            if (nomeMudou || potenciaBaseMudou) {
                 const resposta = await fetch(`/api/modulos/${modulo.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nome: nome.trim() }),
+                    body: JSON.stringify({ nome: nome.trim(), potenciaBaseWatts: potenciaBaseNormalizada }),
                 });
-                if (!resposta.ok) throw new Error('Falha ao salvar o nome.');
+                if (!resposta.ok) throw new Error('Falha ao salvar o modulo.');
                 const dados = await resposta.json();
                 moduloAtualizado = dados;
                 onSalvo?.(dados);
-                registrarLog?.(`Modulo renomeado para "${nome.trim()}".`, 'sucesso');
+                if (nomeMudou) registrarLog?.(`Modulo renomeado para "${nome.trim()}".`, 'sucesso');
+                if (potenciaBaseMudou) registrarLog?.(`Potencia base de "${dados.nome}" ajustada para ${potenciaBaseNormalizada ?? 'nao configurada'}${potenciaBaseNormalizada !== null ? 'W' : ''}.`, 'sucesso');
             }
 
             if (hostnameAtual !== null && hostname.trim() !== hostnameAtual) {
@@ -195,6 +202,23 @@ export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFecha
                         {hostnameAtual === null
                             ? 'Precisa do modulo online pra ler/alterar o hostname atual.'
                             : 'Alterar o hostname reinicia o modulo automaticamente pra aplicar de verdade.'}
+                    </span>
+                </label>
+
+                <label className="modal-editar-modulo__campo">
+                    <span className="hud-tag">Potencia Base do Modulo (W)</span>
+                    <input
+                        className="hud-input"
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        placeholder="ex.: 1.5 (consumo proprio do ESP32, sempre ligado)"
+                        value={potenciaBaseWatts}
+                        onChange={(e) => setPotenciaBaseWatts(e.target.value)}
+                    />
+                    <span className="hud-tag modal-editar-modulo__aviso">
+                        Opcional — so alimenta a estimativa de consumo de energia (aba "Energia" da Central de
+                        Relatorios). Em branco, este modulo fica fora do calculo.
                     </span>
                 </label>
 

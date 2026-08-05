@@ -18,6 +18,14 @@ function formatarModulo(modulo) {
 // não depois.
 const TIPOS_VALIDOS = ['atuador', 'telemetria', 'display'];
 
+// 36-espc: potencia propria do modulo (W), declarada pelo usuario — null se nao informada
+// (fica de fora do calculo de Energia, nunca vira "0W" fingindo precisao que nao existe).
+function potenciaBaseValida(valor) {
+    if (valor === '' || valor === undefined || valor === null) return null;
+    const numero = Number(valor);
+    return Number.isFinite(numero) && numero >= 0 ? numero : null;
+}
+
 function ipValido(ip) {
     const partes = String(ip).split('.');
     if (partes.length !== 4) return false;
@@ -50,9 +58,11 @@ async function criarModulo(req, res) {
         return res.status(409).json({ erro: `Esse IP ja esta cadastrado no modulo "${jaExiste.nome}".` });
     }
 
+    const potenciaBaseWatts = potenciaBaseValida(req.body.potenciaBaseWatts);
+
     const resultado = db
-        .prepare('INSERT INTO modulos (nome, ip, tipo, ativo) VALUES (?, ?, ?, ?)')
-        .run(nome, ip, tipo, ativo ? 1 : 0);
+        .prepare('INSERT INTO modulos (nome, ip, tipo, ativo, potencia_base_watts) VALUES (?, ?, ?, ?, ?)')
+        .run(nome, ip, tipo, ativo ? 1 : 0, potenciaBaseWatts);
 
     const novoModulo = db.prepare('SELECT * FROM modulos WHERE id = ?').get(resultado.lastInsertRowid);
 
@@ -92,6 +102,9 @@ async function atualizarModulo(req, res) {
     const ip = req.body.ip ?? moduloExistente.ip;
     const tipo = req.body.tipo ?? moduloExistente.tipo;
     const ativo = req.body.ativo ?? !!moduloExistente.ativo;
+    const potenciaBaseWatts = req.body.potenciaBaseWatts !== undefined
+        ? potenciaBaseValida(req.body.potenciaBaseWatts)
+        : moduloExistente.potencia_base_watts;
 
     if (!ipValido(ip)) {
         return res.status(400).json({ erro: `IP invalido: "${ip}". Use o formato 000.000.000.000.` });
@@ -104,11 +117,12 @@ async function atualizarModulo(req, res) {
         return res.status(409).json({ erro: `Esse IP ja esta cadastrado no modulo "${jaExiste.nome}".` });
     }
 
-    db.prepare('UPDATE modulos SET nome = ?, ip = ?, tipo = ?, ativo = ? WHERE id = ?').run(
+    db.prepare('UPDATE modulos SET nome = ?, ip = ?, tipo = ?, ativo = ?, potencia_base_watts = ? WHERE id = ?').run(
         nome,
         ip,
         tipo,
         ativo ? 1 : 0,
+        potenciaBaseWatts,
         id
     );
 

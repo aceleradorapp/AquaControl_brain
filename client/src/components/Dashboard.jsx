@@ -26,12 +26,14 @@ import {
     Smartphone,
     Eye,
     Fish,
+    Zap,
 } from 'lucide-react';
 import { useEhMobile } from '../hooks/useEhMobile';
 import HeaderTatico from './HeaderTatico';
 import AlertasConectividade from './AlertasConectividade';
 import PainelParametrosVitais from './PainelParametrosVitais';
 import GraficoTemperatura from './GraficoTemperatura';
+import WidgetConsumoEnergia from './WidgetConsumoEnergia';
 import PainelEquipamentos from './PainelEquipamentos';
 import ModulosControladores from './ModulosControladores';
 import TerminalLogs from './TerminalLogs';
@@ -109,7 +111,7 @@ function carregarEscalaWidgetsSalva() {
 
 const COLUNAS = ['coluna0', 'coluna1', 'coluna2'];
 const LAYOUT_PADRAO = {
-    coluna0: ['parametrosVitais', 'historicoTermico', 'sensoresDisplay'],
+    coluna0: ['parametrosVitais', 'historicoTermico', 'consumoEnergia', 'sensoresDisplay'],
     coluna1: ['centralAquario', 'matrizReles', 'temas', 'agendamentos'],
     coluna2: ['modulosControladores', 'qrcodes', 'systemLog'],
 };
@@ -117,6 +119,7 @@ const LAYOUT_PADRAO = {
 const VISIBILIDADE_PADRAO = {
     parametrosVitais: true,
     historicoTermico: true,
+    consumoEnergia: true,
     centralAquario: true,
     modulosControladores: true,
     systemLog: true,
@@ -135,6 +138,7 @@ const LAYOUT_MOBILE_PADRAO = [
     'agendamentos',
     'temas',
     'historicoTermico',
+    'consumoEnergia',
     'sensoresDisplay',
     'matrizReles',
     'modulosControladores',
@@ -359,9 +363,18 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
     const [modalSelecionarEsquematicoAberto, setModalSelecionarEsquematicoAberto] = useState(false);
 
     // Central de Relatorios e Analises (17-espc) — modal full-screen proprio, sem estado
-    // nenhum vindo de fora (busca os 4 relatorios sozinho quando abre, ver
-    // ModalCentralRelatorios.jsx); Dashboard.jsx so guarda se esta aberto ou nao.
+    // nenhum vindo de fora (busca os relatorios sozinho quando abre, ver
+    // ModalCentralRelatorios.jsx); Dashboard.jsx so guarda se esta aberto ou nao. 36-espc:
+    // "abaInicialRelatorios" deixa o widget de Consumo de Energia abrir o modal direto na
+    // aba "energia" (ver abrirRelatorioEnergia abaixo) — o Menu de Acoes continua abrindo
+    // no padrao ("telemetria").
     const [modalRelatoriosAberto, setModalRelatoriosAberto] = useState(false);
+    const [abaInicialRelatorios, setAbaInicialRelatorios] = useState('telemetria');
+
+    function abrirRelatorioEnergia() {
+        setAbaInicialRelatorios('energia');
+        setModalRelatoriosAberto(true);
+    }
 
     // Configuracoes Globais do Sistema (19-espc) — Dashboard.jsx mantem sua PROPRIA copia das
     // preferencias de notificacao (nao a do rascunho local do ModalConfiguracoes), pra poder
@@ -1432,6 +1445,11 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
             icone: <Thermometer size={20} />,
             render: () => <GraficoTemperatura dadosSensores={dadosSensores} />,
         },
+        consumoEnergia: {
+            titulo: 'Consumo de Energia',
+            icone: <Zap size={20} />,
+            render: () => <WidgetConsumoEnergia onAbrirRelatorioCompleto={abrirRelatorioEnergia} />,
+        },
         centralAquario: {
             titulo: 'Central do Aquario',
             icone: <Power size={20} />,
@@ -1587,7 +1605,15 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
         { chave: 'agendamentos', rotulo: 'Agendamentos', icone: <CalendarClock size={16} />, onClick: () => setModalListaAgendamentosAberto(true) },
         { chave: 'novo-timer', rotulo: 'Novo Timer', icone: <Timer size={16} />, onClick: abrirNovoTimer },
         { chave: 'esquematico', rotulo: 'Esquematicos', icone: <CircuitBoard size={16} />, onClick: () => setModalSelecionarEsquematicoAberto(true) },
-        { chave: 'relatorios', rotulo: 'Central de Relatorios', icone: <FileBarChart size={16} />, onClick: () => setModalRelatoriosAberto(true) },
+        {
+            chave: 'relatorios',
+            rotulo: 'Central de Relatorios',
+            icone: <FileBarChart size={16} />,
+            onClick: () => {
+                setAbaInicialRelatorios('telemetria');
+                setModalRelatoriosAberto(true);
+            },
+        },
         { chave: 'configuracoes', rotulo: 'Configuracoes Globais', icone: <SlidersHorizontal size={16} />, onClick: () => setModalConfiguracoesAberto(true) },
         { chave: 'diagnostico-central', rotulo: 'Central de Diagnostico', icone: <Radar size={16} />, onClick: () => setModalDiagnosticoCentralAberto(true) },
         { chave: 'layout-widgets', rotulo: 'Layout / Widgets', icone: <LayoutGrid size={16} />, onClick: () => setModalWidgetsAberto(true) },
@@ -1830,7 +1856,7 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
                 entradas={entradasEsquematicos}
             />
 
-            <ModalCentralRelatorios aberto={modalRelatoriosAberto} onFechar={() => setModalRelatoriosAberto(false)} />
+            <ModalCentralRelatorios aberto={modalRelatoriosAberto} onFechar={() => setModalRelatoriosAberto(false)} abaInicial={abaInicialRelatorios} />
 
             <ModalConfiguracoes
                 aberto={modalConfiguracoesAberto}

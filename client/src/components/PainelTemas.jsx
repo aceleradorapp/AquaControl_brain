@@ -1,4 +1,4 @@
-import { Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Sparkles, Trash2, Zap } from 'lucide-react';
 
 // Widget "Temas" (14/15-espc): cada tema é um grupo nomeado de relés com um estado definido
 // (ver ModalCriarTema.jsx) — clicar num tema aplica esses estados de verdade (POST
@@ -25,18 +25,29 @@ export default function PainelTemas({ moduloAtuador, temas, onAbrirCriarTema, on
 
             {moduloAtuador && (
                 <div className="painel-temas__lista hud-scrollbar">
-                    {temas.map((tema) => (
+                    {temas.map((tema) => {
+                        const ehTempestade = tema.tipoEfeito === 'tempestade';
+                        const totalLampadas = ehTempestade ? tema.lampadas?.filter((l) => l.posicaoIndiceRele !== null).length ?? 0 : 0;
+                        return (
                         <div key={tema.id} className={`painel-temas__item ${tema.ativo ? 'painel-temas__item--ativo' : ''}`}>
                             <button
                                 className="painel-temas__botao"
                                 type="button"
                                 onClick={() => onAplicar(tema.id)}
-                                title={tema.ativo ? `Desativar tema "${tema.nome}"` : `Aplicar tema "${tema.nome}"`}
+                                title={
+                                    ehTempestade
+                                        ? tema.ativo
+                                            ? `Parar tempestade "${tema.nome}"`
+                                            : `Iniciar tempestade "${tema.nome}"`
+                                        : tema.ativo
+                                        ? `Desativar tema "${tema.nome}"`
+                                        : `Aplicar tema "${tema.nome}"`
+                                }
                             >
-                                <Sparkles size={14} />
+                                {ehTempestade ? <Zap size={14} /> : <Sparkles size={14} />}
                                 <span className="painel-temas__nome">{tema.nome}</span>
-                                {tema.ativo && <span className="hud-tag painel-temas__tag-ativo">ATIVO</span>}
-                                <span className="hud-tag">{tema.reles.length} rele(s)</span>
+                                {tema.ativo && <span className="hud-tag painel-temas__tag-ativo">{ehTempestade ? 'TEMPESTADE ATIVA' : 'ATIVO'}</span>}
+                                <span className="hud-tag">{ehTempestade ? `${totalLampadas} lampada(s)` : `${tema.reles.length} rele(s)`}</span>
                             </button>
                             <button
                                 className="botao-icone"
@@ -57,7 +68,8 @@ export default function PainelTemas({ moduloAtuador, temas, onAbrirCriarTema, on
                                 <Trash2 size={14} />
                             </button>
                         </div>
-                    ))}
+                        );
+                    })}
                     {temas.length === 0 && <p className="hud-tag painel-temas__vazio">Nenhum tema criado ainda — clique no "+" acima.</p>}
                 </div>
             )}

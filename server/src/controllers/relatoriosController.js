@@ -5,6 +5,7 @@ const {
     obterRelatorioAlertas,
     obterHistoricoRecenteSensor,
 } = require('../services/relatoriosService');
+const { obterRelatorioEnergia } = require('../services/energiaService');
 
 // Central de Relatorios e Analises (17-espc) — cada rota so faz o parsing do periodo
 // (query params "inicio"/"fim", ISO 8601) e repassa pro service correspondente, que faz
@@ -51,6 +52,13 @@ async function alertas(req, res) {
     res.json(await obterRelatorioAlertas(inicioSql, fimSql));
 }
 
+// 36-espc: consumo de energia estimado (potencia declarada x tempo ligado) — ver
+// energiaService.js. Le sempre de consumo_energia_diario, ja persistido/agregado por dia.
+function energia(req, res) {
+    const { inicioSql, fimSql } = periodoDaQuery(req);
+    res.json(obterRelatorioEnergia(inicioSql, fimSql));
+}
+
 // GET /api/relatorios/sensor-historico?sensorId=temp_agua_1&limite=30 (23-espc, Central de
 // Diagnostico) — usado pelo modal de detalhe de sensor, nao tem filtro de periodo (sempre as
 // ultimas N leituras, nao um intervalo de datas).
@@ -60,4 +68,4 @@ function sensorHistorico(req, res) {
     res.json(obterHistoricoRecenteSensor(sensorId, limite));
 }
 
-module.exports = { telemetria, consumoAgua, automacao, alertas, sensorHistorico };
+module.exports = { telemetria, consumoAgua, automacao, alertas, energia, sensorHistorico };

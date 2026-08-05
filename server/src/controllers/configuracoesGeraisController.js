@@ -24,6 +24,10 @@ const PADRAO = {
     // Existe pra calibrar contra um termometro de referencia real, nao pra "corrigir" um
     // sensor com defeito especifico (o offset e UNICO, aplicado igual a todos os canais).
     calibracao_temp_agua_offset: '0',
+    // 36-espc: preco do kWh em R$, usado so pra converter kWh estimado em custo estimado no
+    // relatorio de Energia — '0' = tarifa nao configurada, a UI esconde o "custo em R$" e
+    // mostra so kWh (nunca inventa um preco).
+    tarifa_energia_kwh: '0',
 };
 
 function obterConfiguracoesGerais(req, res) {

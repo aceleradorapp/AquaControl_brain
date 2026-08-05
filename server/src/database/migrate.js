@@ -250,6 +250,45 @@ function runMigrations(db) {
         );
     `);
 
+    // 35-espc (01-espc-geral/35_especificacao_tema_tempestade_e_efeitos_reles.md): Tema
+    // Tempestade — em vez de uma estrutura paralela, e so mais um TEMA ("tipo_efeito" =
+    // 'tempestade' em vez do 'estatico' de sempre), pra herdar de graca tudo que ja existe
+    // pra tema (temas_estado/exclusao mutua, agendamentos tipo='tema', timers_ativos
+    // alvo_tipo='tema', o botao ativar/desativar de PainelTemas.jsx). Um tema tempestade NAO
+    // usa temas_reles (nao tem um estado fixo ligado/desligado) — o motor de fundo
+    // (tempestadeService.js) gera raios aleatorios sozinho enquanto ele estiver ativo.
+    if (!colunaExiste(db, 'temas', 'tipo_efeito')) {
+        db.exec("ALTER TABLE temas ADD COLUMN tipo_efeito TEXT NOT NULL DEFAULT 'estatico';");
+    }
+
+    // 35-espc (pedido do usuario apos testar ao vivo — o intervalo fixo de 15-60s entre raios
+    // demorava demais pra dar o primeiro flash): intervalo minimo/maximo entre raios,
+    // configuravel POR TEMA tempestade (NULL em ambas = usa o padrao do sistema, 15-60s, ver
+    // tempestadeService.js). So faz sentido pra tipo_efeito='tempestade', mas fica na propria
+    // tabela "temas" (nao numa tabela irma) por serem só 2 numeros, sem necessidade de
+    // relacionamento nenhum.
+    if (!colunaExiste(db, 'temas', 'tempestade_intervalo_min_s')) {
+        db.exec('ALTER TABLE temas ADD COLUMN tempestade_intervalo_min_s INTEGER;');
+    }
+    if (!colunaExiste(db, 'temas', 'tempestade_intervalo_max_s')) {
+        db.exec('ALTER TABLE temas ADD COLUMN tempestade_intervalo_max_s INTEGER;');
+    }
+
+    // 35-espc: mapeamento das 8 posicoes fisicas da calha pro indice de rele real (0-15) —
+    // "posicao_indice_rele" NULL = posicao ainda nao mapeada (fica de fora dos raios
+    // gerados). Tabela IRMA de temas_reles, mas escopada por tema_id igual ela (nao por
+    // modulo_id) — permite, em tese, mais de um Tema Tempestade com mapeamentos diferentes.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS tema_tempestade_lampadas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tema_id INTEGER NOT NULL,
+            posicao_lampada INTEGER NOT NULL,
+            posicao_indice_rele INTEGER,
+            FOREIGN KEY (tema_id) REFERENCES temas (id) ON DELETE CASCADE,
+            UNIQUE (tema_id, posicao_lampada)
+        );
+    `);
+
     // 15-espc: qual Tema está "ativo" agora, por módulo — nunca dois ao mesmo tempo (regra
     // de negócio, não só de UI). Uma linha por módulo (PRIMARY KEY modulo_id); "ON DELETE
     // SET NULL" garante que apagar o tema ativo não deixa a linha apontando pra um id morto
@@ -625,6 +664,46 @@ function runMigrations(db) {
         INSERT OR IGNORE INTO calibracao_fluxo (id, vazao_maxima_lh, vazao_minima_lh, vazao_troca_filtro_lh)
         VALUES (1, 2000, 200, 800)
     `);
+
+    // 36-espc (Consumo de Energia, estimado): potencia nominal declarada pelo usuario, NAO
+    // medida por sensor nenhum — ver 01-espc-geral/36_consumo_energia_atuadores_modulos.md.
+    // NULL = porta sem potencia configurada, fica de fora do calculo (nunca aparece como
+    // "0W", que fingiria uma precisao que nao existe).
+    if (!colunaExiste(db, 'portas_mapeamento', 'potencia_watts')) {
+        db.exec('ALTER TABLE portas_mapeamento ADD COLUMN potencia_watts REAL;');
+    }
+
+    // 36-espc: consumo proprio do modulo (ESP32 sempre energizado, nao comutado por rele
+    // nenhum) — mesmo raciocinio de "NULL = fora do calculo" da coluna acima.
+    if (!colunaExiste(db, 'modulos', 'potencia_base_watts')) {
+        db.exec('ALTER TABLE modulos ADD COLUMN potencia_base_watts REAL;');
+    }
+
+    // 36-espc: resumo diario de consumo, POR EQUIPAMENTO (posicao_indice >= 0) ou pelo
+    // proprio modulo (posicao_indice = -1, sentinela — nao usamos NULL aqui porque o SQLite
+    // trata cada NULL como distinto numa UNIQUE, o que deixaria multiplas linhas "do modulo"
+    // coexistirem no mesmo dia sem violar a constraint). "nome"/"potencia_watts" sao um
+    // snapshot do dia (sobrevive a porta ser renomeada ou ter a potencia reconfigurada
+    // depois) — mesmo espirito de "nome_porta" em historico_reles. Existe pra sobreviver a
+    // limpeza periodica de historico_reles (retencao_historico_dias, ver
+    // manutencaoService.js) e pra nao reprocessar todo o historico bruto a cada relatorio —
+    // ver energiaService.js.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS consumo_energia_diario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            modulo_id INTEGER NOT NULL,
+            posicao_indice INTEGER NOT NULL DEFAULT -1,
+            nome TEXT NOT NULL,
+            dia TEXT NOT NULL,
+            potencia_watts REAL NOT NULL,
+            horas_ligado REAL NOT NULL,
+            kwh REAL NOT NULL,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (modulo_id) REFERENCES modulos (id) ON DELETE CASCADE,
+            UNIQUE (modulo_id, posicao_indice, dia)
+        );
+    `);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_consumo_energia_dia ON consumo_energia_diario (dia);');
 }
 
 module.exports = { runMigrations };

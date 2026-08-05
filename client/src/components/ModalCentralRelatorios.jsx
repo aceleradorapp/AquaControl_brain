@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Activity, AlertTriangle, Download, Droplets, Power, Printer } from 'lucide-react';
+import { Activity, AlertTriangle, Download, Droplets, Power, Printer, Zap } from 'lucide-react';
 import ModalHud from './ModalHud';
 import RelatorioTelemetria from './RelatorioTelemetria';
 import RelatorioConsumoAgua from './RelatorioConsumoAgua';
 import RelatorioAutomacao from './RelatorioAutomacao';
 import RelatorioAlertas from './RelatorioAlertas';
+import RelatorioConsumoEnergia from './RelatorioConsumoEnergia';
 import { exportarCsv, exportarPdf } from '../utils/exportarRelatorio';
 
 const ABAS = [
     { chave: 'telemetria', rotulo: 'Telemetria & Agua', icone: Droplets, rota: 'telemetria' },
     { chave: 'consumo', rotulo: 'Consumo & Vazao', icone: Activity, rota: 'consumo-agua' },
     { chave: 'automacao', rotulo: 'Automacao & Reles', icone: Power, rota: 'automacao' },
+    { chave: 'energia', rotulo: 'Energia', icone: Zap, rota: 'energia' },
     { chave: 'alertas', rotulo: 'Alertas & Saude', icone: AlertTriangle, rota: 'alertas' },
 ];
 
@@ -47,13 +49,23 @@ function calcularIntervalo(periodo, dataInicioPersonalizada, dataFimPersonalizad
 // instantaneo, ja esta tudo carregado), e exportacao CSV (da tabela principal da aba ativa) /
 // PDF (impressao nativa do navegador, ver exportarRelatorio.js e o "@media print" em
 // relatorios.css).
-export default function ModalCentralRelatorios({ aberto, onFechar }) {
-    const [abaAtiva, setAbaAtiva] = useState('telemetria');
+// 36-espc: "abaInicial" deixa quem abre o modal escolher em qual aba ele comeca (ex.: o
+// widget de Consumo de Energia do dashboard quer abrir direto na aba "energia", em vez de
+// sempre cair em "telemetria") — o efeito abaixo so reaplica no momento em que o modal abre
+// (dependencia so em "aberto", nao em "abaInicial"), entao nao interrompe o usuario
+// trocando de aba livremente enquanto o modal ja esta aberto.
+export default function ModalCentralRelatorios({ aberto, onFechar, abaInicial = 'telemetria' }) {
+    const [abaAtiva, setAbaAtiva] = useState(abaInicial);
     const [periodo, setPeriodo] = useState('7d');
     const [dataInicioPersonalizada, setDataInicioPersonalizada] = useState('');
     const [dataFimPersonalizada, setDataFimPersonalizada] = useState('');
 
-    const [dados, setDados] = useState({ telemetria: null, consumo: null, automacao: null, alertas: null });
+    useEffect(() => {
+        if (aberto) setAbaAtiva(abaInicial);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [aberto]);
+
+    const [dados, setDados] = useState({ telemetria: null, consumo: null, automacao: null, energia: null, alertas: null });
     const [carregando, setCarregando] = useState(false);
     // Nomes personalizados por sensor (sensorId -> nomePersonalizado, ver
     // sensoresPersonalizadosController.js) — buscado uma vez quando o modal abre (nao depende
@@ -92,9 +104,9 @@ export default function ModalCentralRelatorios({ aberto, onFechar }) {
                     .then((resposta) => resposta.json())
                     .catch(() => ({ disponivel: false, motivo: 'Falha ao consultar o AquaControl_Brain.' }))
             )
-        ).then(([telemetria, consumo, automacao, alertas]) => {
+        ).then(([telemetria, consumo, automacao, energia, alertas]) => {
             if (cancelado) return;
-            setDados({ telemetria, consumo, automacao, alertas });
+            setDados({ telemetria, consumo, automacao, energia, alertas });
             setCarregando(false);
         });
 
@@ -134,6 +146,16 @@ export default function ModalCentralRelatorios({ aberto, onFechar }) {
                     { chave: 'ciclos', rotulo: 'Ciclos' },
                 ],
                 dados.automacao.resumoPorPorta
+            );
+        } else if (abaAtiva === 'energia' && dados.energia?.disponivel) {
+            exportarCsv(
+                'consumo_energia',
+                [
+                    { chave: 'nome', rotulo: 'Equipamento/Modulo' },
+                    { chave: 'tipo', rotulo: 'Tipo' },
+                    { chave: 'kwhTotal', rotulo: 'kWh (estimado)' },
+                ],
+                dados.energia.porEquipamento
             );
         } else if (abaAtiva === 'alertas' && dados.alertas?.disponivel) {
             exportarCsv(
@@ -207,6 +229,7 @@ export default function ModalCentralRelatorios({ aberto, onFechar }) {
                     {abaAtiva === 'telemetria' && <RelatorioTelemetria dados={dados.telemetria} carregando={carregando} nomesSensores={nomesSensores} />}
                     {abaAtiva === 'consumo' && <RelatorioConsumoAgua dados={dados.consumo} carregando={carregando} />}
                     {abaAtiva === 'automacao' && <RelatorioAutomacao dados={dados.automacao} carregando={carregando} />}
+                    {abaAtiva === 'energia' && <RelatorioConsumoEnergia dados={dados.energia} carregando={carregando} />}
                     {abaAtiva === 'alertas' && <RelatorioAlertas dados={dados.alertas} carregando={carregando} />}
                 </div>
             </div>

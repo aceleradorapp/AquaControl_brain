@@ -442,6 +442,79 @@
     box-shadow: var(--glow-cyan-sm);
 }
 
+/* --- Widget Consumo de Energia (36-espc) --- */
+.widget-energia__kpis {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--espaco-md);
+    margin-bottom: var(--espaco-sm);
+}
+.widget-energia__kpi-principal {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.widget-energia__valor-grande {
+    font-family: var(--fonte-titulo);
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #ffbe00;
+    line-height: 1.1;
+}
+.widget-energia__unidade {
+    font-size: 0.85rem;
+    font-weight: 400;
+    margin-left: 4px;
+    color: var(--cor-texto-secundario);
+}
+.widget-energia__custo {
+    font-family: var(--fonte-mono);
+    font-size: 0.78rem;
+    color: var(--cor-sucesso);
+}
+.widget-energia__kpi-secundario {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--cor-fundo-elevado);
+    border: 1px solid var(--cor-borda);
+}
+.widget-energia__icone-destaque {
+    color: #ffbe00;
+    flex-shrink: 0;
+}
+.widget-energia__kpi-secundario-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+.widget-energia__destaque {
+    font-family: var(--fonte-mono);
+    font-size: 0.82rem;
+    color: var(--cor-texto);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+}
+.widget-energia__tendencia {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--fonte-mono);
+    font-size: 0.72rem;
+    color: var(--cor-texto-secundario);
+}
+.widget-energia__tendencia--alta {
+    color: #ff9800;
+}
+.widget-energia__tendencia--baixa {
+    color: var(--cor-sucesso);
+}
+
 /* --- Barra de energia (Umidade do Ar) --- */
 .barra-energia {
     display: flex;

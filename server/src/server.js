@@ -11,11 +11,17 @@ const { iniciarSchedulerEngine } = require('./services/schedulerService');
 const { iniciarAutomacaoEquipamentos } = require('./services/automacaoEquipamentosService');
 const { iniciarManutencao } = require('./services/manutencaoService');
 const { iniciarDiagnosticoAgendado } = require('./services/diagnosticoService');
+const { iniciarAgendamentoConsumoEnergia } = require('./services/energiaService');
+const { iniciarMotorTempestade } = require('./services/tempestadeService');
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// Limite padrao do express.json() e 100kb — pequeno demais desde que Gestao de Fauna passou a
+// mandar a foto recortada como um data: URL JPEG dentro do corpo JSON (ModalCortarImagem.jsx,
+// sem endpoint de upload/multipart dedicado). 5mb da folga generosa pra isso (o recorte sai
+// bem menor, ~100-300KB tipicamente) sem deixar o limite gigante à toa.
+app.use(express.json({ limit: '5mb' }));
 
 app.use('/api', routes);
 
@@ -80,3 +86,11 @@ iniciarManutencao();
 // diagnosticoService.js. O mesmo checklist tambem pode ser disparado na hora via
 // POST /api/diagnostics/executar (botao na Central de Diagnostico).
 iniciarDiagnosticoAgendado();
+
+// 36-espc: fecha o dia de consumo de energia estimado (backfill + catch-up + continuacao,
+// tudo na mesma rotina) no boot, e a cada 3h dai em diante — ver energiaService.js.
+iniciarAgendamentoConsumoEnergia();
+
+// 35-espc: Motor do Tema Tempestade — dispara raios aleatorios enquanto um tema
+// tipo_efeito='tempestade' estiver ativo (manual/timer/agendamento) — ver tempestadeService.js.
+iniciarMotorTempestade();
