@@ -1438,6 +1438,7 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
                     valorAgua={valorAguaAtual}
                     valorAmbiente={valorAmbienteAtual}
                     umidadeAr={umidadeArExibida}
+                    nivelAguaPercentual={typeof sensorNivelUltrassomReal?.valor === 'number' ? sensorNivelUltrassomReal.valor : null}
                     vazao={vazaoExibida}
                     vazamentoDetectado={vazamentoDetectado}
                     vazao2={vazao2Exibida}

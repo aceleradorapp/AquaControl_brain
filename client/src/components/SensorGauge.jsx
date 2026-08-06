@@ -20,7 +20,11 @@ export default function SensorGauge({ titulo, valor, unidade = '°C', min = 15, 
 
     return (
         <div className={`sensor-gauge hud-corner-marks ${desconectado ? 'sensor-gauge--desconectado' : ''}`}>
-            <svg width="120" height="120" viewBox="0 0 120 120">
+            {/* 41-espc: 80x80 (era 120x120) — abriu espaco no widget "Parametros Vitais" pra
+                caber a barra de Nivel de Agua sem crescer a altura fixa do card. viewBox
+                continua 120x120 de proposito: o SVG so escala visualmente, raio/textos internos
+                nao precisam ser recalculados (unico uso deste componente hoje). */}
+            <svg width="80" height="80" viewBox="0 0 120 120">
                 <circle cx="60" cy="60" r={raio} fill="none" stroke="var(--cor-borda)" strokeWidth="8" />
                 {!desconectado && (
                     <circle

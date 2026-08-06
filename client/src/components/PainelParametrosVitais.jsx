@@ -14,11 +14,16 @@ import AlertaVazamento from './AlertaVazamento';
 // cadastrado/conectado, a prop chega "undefined"/"null" e o elemento simplesmente nao aparece
 // — nenhum desses sensores e obrigatorio pro resto do painel continuar funcionando exatamente
 // como antes. 38-espc: o gauge de Alerta de Nivel saiu daqui — agora e o widget proprio
-// WidgetAlertaNivel.jsx (registroWidgets.alertaNivel em Dashboard.jsx).
+// WidgetAlertaNivel.jsx (registroWidgets.alertaNivel em Dashboard.jsx). 41-espc: a barra de
+// percentual do Nivel de Agua (sensor ultrassonico, 39-espc) voltou pra ca a pedido do usuario
+// — SEM crescer a altura fixa do card (380px, ver widgets-layout.css): os arcos de AGUA/
+// AMBIENTE encolheram de 120 pra 80px (ver SensorGauge.jsx) e a barra nova entra agrupada com
+// Umidade do Ar sob o MESMO divisor (uma <hr> a menos) pra caber com folga sem scroll.
 export default function PainelParametrosVitais({
     valorAgua,
     valorAmbiente,
     umidadeAr,
+    nivelAguaPercentual,
     vazao,
     vazamentoDetectado,
     vazao2,
@@ -38,6 +43,9 @@ export default function PainelParametrosVitais({
             </div>
             <hr className="hud-linha" />
             <BarraEnergiaHud titulo="UMIDADE DO AR" valor={umidadeAr} cor="var(--cor-secundaria)" />
+            {typeof nivelAguaPercentual === 'number' && (
+                <BarraEnergiaHud titulo="NIVEL DE AGUA" valor={nivelAguaPercentual} unidade="%" cor="var(--cor-primaria)" />
+            )}
             {vazao && (
                 <>
                     <hr className="hud-linha" />
