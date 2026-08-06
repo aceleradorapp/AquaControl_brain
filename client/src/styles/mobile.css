@@ -40,11 +40,24 @@
     border-bottom: 1px solid var(--cor-borda);
     flex-shrink: 0;
 }
+.menu-lateral-mobile__grupos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-md);
+    padding: var(--espaco-md);
+}
+.menu-lateral-mobile__grupo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-xs);
+}
+.menu-lateral-mobile__grupo-titulo {
+    padding-left: 2px;
+}
 .menu-lateral-mobile__lista {
     display: flex;
     flex-direction: column;
     gap: var(--espaco-sm);
-    padding: var(--espaco-md);
 }
 .menu-lateral-mobile__item {
     display: flex;

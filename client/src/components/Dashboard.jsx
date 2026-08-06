@@ -1616,14 +1616,23 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
     // o widget correspondente escondido em Layout/Widgets. IMPORTANTE (ver
     // 01-espc-geral/14_menu_de_acoes.md): toda nova funcionalidade/modal de configuracao
     // adicionada ao dashboard DEVE ganhar uma entrada aqui tambem.
+    // 42-espc: itens agrupados por categoria (antes era uma lista unica de 13 itens sem
+    // nenhuma organizacao, dificil de escanear rapido). A ORDEM do array define a ordem dos
+    // grupos na tela — cada item leva um campo "grupo", agrupados logo abaixo em "gruposMenu"
+    // (usado por ModalMenuAcoes.jsx/MenuLateralMobile.jsx, os dois compartilham a mesma
+    // estrutura ja agrupada, so a apresentacao visual muda entre desktop/celular).
     const itensMenu = [
-        { chave: 'mapear-saidas', rotulo: 'Mapear Saidas', icone: <Settings size={16} />, onClick: () => setModalPortasAberto(true) },
-        { chave: 'criar-tema', rotulo: 'Criar Tema', icone: <Sparkles size={16} />, onClick: abrirCriarTema },
-        { chave: 'agendamentos', rotulo: 'Agendamentos', icone: <CalendarClock size={16} />, onClick: () => setModalListaAgendamentosAberto(true) },
-        { chave: 'novo-timer', rotulo: 'Novo Timer', icone: <Timer size={16} />, onClick: abrirNovoTimer },
-        { chave: 'esquematico', rotulo: 'Esquematicos', icone: <CircuitBoard size={16} />, onClick: () => setModalSelecionarEsquematicoAberto(true) },
+        { chave: 'mapear-saidas', grupo: 'Hardware & Diagnostico', rotulo: 'Mapear Saidas', icone: <Settings size={16} />, onClick: () => setModalPortasAberto(true) },
+        { chave: 'esquematico', grupo: 'Hardware & Diagnostico', rotulo: 'Esquematicos', icone: <CircuitBoard size={16} />, onClick: () => setModalSelecionarEsquematicoAberto(true) },
+        { chave: 'diagnostico-central', grupo: 'Hardware & Diagnostico', rotulo: 'Central de Diagnostico', icone: <Radar size={16} />, onClick: () => setModalDiagnosticoCentralAberto(true) },
+
+        { chave: 'criar-tema', grupo: 'Automacao & Cenas', rotulo: 'Criar Tema', icone: <Sparkles size={16} />, onClick: abrirCriarTema },
+        { chave: 'agendamentos', grupo: 'Automacao & Cenas', rotulo: 'Agendamentos', icone: <CalendarClock size={16} />, onClick: () => setModalListaAgendamentosAberto(true) },
+        { chave: 'novo-timer', grupo: 'Automacao & Cenas', rotulo: 'Novo Timer', icone: <Timer size={16} />, onClick: abrirNovoTimer },
+
         {
             chave: 'relatorios',
+            grupo: 'Dados & Documentacao',
             rotulo: 'Central de Relatorios',
             icone: <FileBarChart size={16} />,
             onClick: () => {
@@ -1631,19 +1640,32 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
                 setModalRelatoriosAberto(true);
             },
         },
-        { chave: 'configuracoes', rotulo: 'Configuracoes Globais', icone: <SlidersHorizontal size={16} />, onClick: () => setModalConfiguracoesAberto(true) },
-        { chave: 'diagnostico-central', rotulo: 'Central de Diagnostico', icone: <Radar size={16} />, onClick: () => setModalDiagnosticoCentralAberto(true) },
-        { chave: 'layout-widgets', rotulo: 'Layout / Widgets', icone: <LayoutGrid size={16} />, onClick: () => setModalWidgetsAberto(true) },
-        { chave: 'documentacao', rotulo: 'Documentacao', icone: <BookOpen size={16} />, onClick: () => setModalDocumentacaoAberto(true) },
-        { chave: 'config-celular', rotulo: 'Configuracoes do Celular', icone: <Smartphone size={16} />, onClick: () => setModalConfigCelularAberto(true) },
-        { chave: 'gestao-fauna', rotulo: 'Gestao de Fauna', icone: <Fish size={16} />, onClick: () => setModalGestaoFaunaAberto(true) },
+        { chave: 'documentacao', grupo: 'Dados & Documentacao', rotulo: 'Documentacao', icone: <BookOpen size={16} />, onClick: () => setModalDocumentacaoAberto(true) },
+
+        { chave: 'configuracoes', grupo: 'Sistema & Personalizacao', rotulo: 'Configuracoes Globais', icone: <SlidersHorizontal size={16} />, onClick: () => setModalConfiguracoesAberto(true) },
+        { chave: 'layout-widgets', grupo: 'Sistema & Personalizacao', rotulo: 'Layout / Widgets', icone: <LayoutGrid size={16} />, onClick: () => setModalWidgetsAberto(true) },
+        { chave: 'config-celular', grupo: 'Sistema & Personalizacao', rotulo: 'Configuracoes do Celular', icone: <Smartphone size={16} />, onClick: () => setModalConfigCelularAberto(true) },
+
+        { chave: 'gestao-fauna', grupo: 'Visitante & Conteudo', rotulo: 'Gestao de Fauna', icone: <Fish size={16} />, onClick: () => setModalGestaoFaunaAberto(true) },
         // 33-espc: preview da Pagina de Visitante sem perder a propria sessao — ver App.jsx
         // ("modoVisitantePreview"). Sem "onVerModoVisitante" (app renderizado fora do guard de
         // autenticacao, cenario que nao deveria acontecer, mas o item so some em vez de quebrar).
         ...(onVerModoVisitante
-            ? [{ chave: 'ver-modo-visitante', rotulo: 'Ver Modo Visitante', icone: <Eye size={16} />, onClick: onVerModoVisitante }]
+            ? [{ chave: 'ver-modo-visitante', grupo: 'Visitante & Conteudo', rotulo: 'Ver Modo Visitante', icone: <Eye size={16} />, onClick: onVerModoVisitante }]
             : []),
     ];
+
+    // Agrupa preservando a ordem de PRIMEIRA aparicao de cada "grupo" no array acima —
+    // nao ordena por nome nem precisa de uma lista de categorias declarada a parte.
+    const gruposMenu = [];
+    const indicePorGrupo = new Map();
+    for (const item of itensMenu) {
+        if (!indicePorGrupo.has(item.grupo)) {
+            indicePorGrupo.set(item.grupo, gruposMenu.length);
+            gruposMenu.push({ titulo: item.grupo, itens: [] });
+        }
+        gruposMenu[indicePorGrupo.get(item.grupo)].itens.push(item);
+    }
 
     // Entradas do Seletor de Esquematicos (16-espc) — um item por MODULO cadastrado que tem
     // um esquematico proprio, usando o "nome" REAL cadastrado em Modulos de Controladores
@@ -1802,12 +1824,12 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
 
             {/* Menu de Acoes: no celular vira um drawer lateral (desliza da esquerda, mais
                 facil de alcancar com o polegar); no desktop/tablet continua o modal
-                centralizado de sempre. MESMOS "itensMenu" nos dois — so a apresentacao
+                centralizado de sempre. MESMOS "gruposMenu" nos dois — so a apresentacao
                 muda (ver MenuLateralMobile.jsx). */}
             {ehMobile ? (
-                <MenuLateralMobile aberto={modalMenuAberto} itens={itensMenu} onFechar={() => setModalMenuAberto(false)} />
+                <MenuLateralMobile aberto={modalMenuAberto} grupos={gruposMenu} onFechar={() => setModalMenuAberto(false)} />
             ) : (
-                <ModalMenuAcoes aberto={modalMenuAberto} itens={itensMenu} onFechar={() => setModalMenuAberto(false)} />
+                <ModalMenuAcoes aberto={modalMenuAberto} grupos={gruposMenu} onFechar={() => setModalMenuAberto(false)} />
             )}
 
             <ModalConfiguracoesCelular
