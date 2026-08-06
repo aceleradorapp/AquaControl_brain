@@ -7,7 +7,8 @@ import '../styles/esquematico.css';
 // Interativo dos reles (EsquematicoInterativo.jsx: ESP32 + fios ortogonais + blocos de
 // status), mas SEM interatividade de clique (sensores sao so leitura, nao tem o que
 // "acionar") e SEM a coluna intermediaria de modulo (o sensor liga direto no GPIO do ESP32,
-// nao existe um MCP23017/rele no meio). 10 blocos = os 10 sensores fisicos atuais (o DHT11 é
+// nao existe um MCP23017/rele no meio). 9 blocos = os 9 sensores fisicos atuais (38-espc:
+// removido o bloco de Inclinacao/GPIO 21, sem sensor ativo la por enquanto — o DHT11 é
 // UM sensor fisico só — 2 valores, temp+umidade — por isso vira um bloco só, não dois); o
 // resto do arquivo (calcularPinosGpio/ESP32_H/VIEWBOX_H) se adapta sozinho a quantos blocos
 // existirem, entao adicionar um sensor novo no futuro so precisa de uma linha aqui.
@@ -16,13 +17,12 @@ const BLOCOS_SENSORES = [
     { titulo: 'Temp. Agua 2 (DS18B20)', gpio: 18, ids: ['temp_agua_2'] },
     { titulo: 'Temp. Agua 3 (DS18B20)', gpio: 18, ids: ['temp_agua_3'] },
     { titulo: 'DHT11 (Temp./Umidade Ar)', gpio: 19, ids: ['temp_ar', 'umidade_ar'] },
-    { titulo: 'Inclinacao (SW-520D)', gpio: 21, ids: ['inclinacao'] },
     { titulo: 'Fluxo de Agua 1 (YF-S201)', gpio: 23, ids: ['fluxo_agua'] },
     // 27-espc: Fluxo 2 fica logo abaixo do Fluxo 1 (fora da ordem crescente de GPIO) — os dois
     // canais de vazao sao o mesmo tipo de sensor, faz sentido visual manter juntos.
     { titulo: 'Fluxo de Agua 2 (YF-S201)', gpio: 35, ids: ['fluxo_agua_2'] },
     { titulo: 'pH da Agua', gpio: 34, ids: ['ph_agua'] },
-    { titulo: 'Nivel de Agua (Reservatorio)', gpio: 36, ids: ['nivel_agua'] },
+    { titulo: 'Alerta de Nivel (Reservatorio)', gpio: 36, ids: ['alerta_nivel'] },
     { titulo: 'Deteccao de Vazamento', gpio: 39, ids: ['vazamento'] },
 ];
 

@@ -62,6 +62,7 @@ const MAPA_FAIXA_ROTULO = {
     temp_ar: 'Temperatura do Ar (°C)',
     ph_agua: 'pH da Agua',
     umidade_ar: 'Umidade do Ar (%)',
+    alerta_nivel: 'Alerta de Nivel (%) — abaixo deste valor dispara "Valor Fora do Limite"',
 };
 
 const MAPA_PINOS_SENSORES = [
@@ -69,7 +70,10 @@ const MAPA_PINOS_SENSORES = [
     { sensor: 'DHT11 (Temp./Umidade Ar)', pino: 'GPIO 19' },
     { sensor: 'YF-S201 (Fluxo)', pino: 'GPIO 23' },
     { sensor: 'pH (analogico)', pino: 'GPIO 34 (ADC, so leitura)' },
-    { sensor: 'SW-520D (Nivel de Agua)', pino: 'GPIO 21' },
+    { sensor: '(livre — reservado para sensor futuro, 38-espc)', pino: 'GPIO 21' },
+    { sensor: 'Alerta de Nivel (sensor de contato, 3 zonas, 38-espc)', pino: 'GPIO 36 (ADC1/VP, so leitura)' },
+    { sensor: 'Deteccao de Vazamento (analogico, 27-espc)', pino: 'GPIO 39 (ADC1/VN, so leitura)' },
+    { sensor: 'YF-S201 (Fluxo 2, 27-espc)', pino: 'GPIO 35 (so leitura)' },
 ];
 
 function normalizarBusca(texto) {
@@ -147,6 +151,7 @@ export default function ModalConfiguracoes({
     const [erroEdicaoUsuario, setErroEdicaoUsuario] = useState('');
 
     const moduloAtuador = modulos.find((m) => m.tipo === 'atuador') ?? null;
+    const moduloTelemetria = modulos.find((m) => m.tipo === 'telemetria') ?? null;
     const moduloDisplay = modulos.find((m) => m.tipo === 'display') ?? null;
 
     useEffect(() => {
@@ -369,6 +374,78 @@ export default function ModalConfiguracoes({
             registrarLog?.(erro.message || 'Falha ao enviar a protecao de tela.', 'erro');
         } finally {
             setEnviandoProtecao(false);
+        }
+    }
+
+    // Calibracao ao vivo do sensor "Alerta de Nivel" (38-espc, renomeado de "nivel de agua"):
+    // mostra o ADC bruto atual + o minimo/maximo que o firmware ja registra sozinho, reaproveita
+    // o MESMO "dadosSensores" que ja chega por prop (poll de 5s do Dashboard, sem fetch proprio
+    // aqui). Os campos IDEAL/BAIXO abaixo SALVAM de verdade no ESP32 (NVS, POST /api/alerta-
+    // nivel/calibracao) — diferente da versao anterior (37-espc), nao precisa mais reflashar
+    // pra reajustar.
+    const [resetandoRegistroAlertaNivel, setResetandoRegistroAlertaNivel] = useState(false);
+    const [calibracaoAlertaNivelForm, setCalibracaoAlertaNivelForm] = useState(null);
+    const [salvandoCalibracaoAlertaNivel, setSalvandoCalibracaoAlertaNivel] = useState(false);
+    const sensorAlertaNivel = dadosSensores?.disponivel ? dadosSensores.sensores.find((s) => s.id === 'alerta_nivel') : null;
+
+    // So preenche o formulario UMA VEZ com o que o ESP tem salvo (nao a cada poll de 5s —
+    // senao sobrescreveria o que o usuario esta digitando antes de clicar em "Salvar").
+    useEffect(() => {
+        if (calibracaoAlertaNivelForm === null && sensorAlertaNivel) {
+            setCalibracaoAlertaNivelForm({
+                ideal: sensorAlertaNivel.ideal_adc !== undefined ? String(sensorAlertaNivel.ideal_adc) : '',
+                baixo: sensorAlertaNivel.baixo_adc !== undefined ? String(sensorAlertaNivel.baixo_adc) : '',
+            });
+        }
+    }, [sensorAlertaNivel, calibracaoAlertaNivelForm]);
+
+    function atualizarCalibracaoAlertaNivelForm(campo, valor) {
+        setCalibracaoAlertaNivelForm((atual) => ({ ...(atual ?? { ideal: '', baixo: '' }), [campo]: valor }));
+    }
+
+    async function resetarRegistroAlertaNivel() {
+        if (!moduloTelemetria) return;
+        setResetandoRegistroAlertaNivel(true);
+        try {
+            const resposta = await fetch(`/api/modulos/${moduloTelemetria.id}/alerta-nivel/resetar-calibracao`, { method: 'POST' });
+            const dados = await resposta.json();
+            if (dados.disponivel) {
+                registrarLog?.('Registro de minimo/maximo do Alerta de Nivel resetado.', 'sucesso');
+            } else {
+                registrarLog?.(`Nao foi possivel resetar agora: ${dados.motivo}`, 'alerta');
+            }
+        } catch (erro) {
+            registrarLog?.(erro.message || 'Falha ao resetar o registro do Alerta de Nivel.', 'erro');
+        } finally {
+            setResetandoRegistroAlertaNivel(false);
+        }
+    }
+
+    async function salvarCalibracaoAlertaNivel() {
+        if (!moduloTelemetria || !calibracaoAlertaNivelForm) return;
+        const ideal = Number(calibracaoAlertaNivelForm.ideal);
+        const baixo = Number(calibracaoAlertaNivelForm.baixo);
+        if (!Number.isFinite(ideal) || !Number.isFinite(baixo) || ideal <= baixo) {
+            registrarLog?.('Calibracao invalida: "IDEAL" precisa ser um numero maior que "BAIXO".', 'erro');
+            return;
+        }
+        setSalvandoCalibracaoAlertaNivel(true);
+        try {
+            const resposta = await fetch(`/api/modulos/${moduloTelemetria.id}/alerta-nivel/calibracao`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ideal, baixo }),
+            });
+            const dados = await resposta.json();
+            if (dados.disponivel) {
+                registrarLog?.(`Calibracao do Alerta de Nivel atualizada no ESP32 (ideal=${ideal}, baixo=${baixo}).`, 'sucesso');
+            } else {
+                registrarLog?.(`Nao foi possivel salvar agora: ${dados.motivo}`, 'alerta');
+            }
+        } catch (erro) {
+            registrarLog?.(erro.message || 'Falha ao salvar a calibracao do Alerta de Nivel.', 'erro');
+        } finally {
+            setSalvandoCalibracaoAlertaNivel(false);
         }
     }
 
@@ -1002,6 +1079,82 @@ export default function ModalConfiguracoes({
                                             />
                                             <span className="hud-tag">L/h</span>
                                         </LinhaConfiguracao>
+                                    </CartaoSecao>
+                                )}
+
+                                {corresponde('Alerta de Nivel', 'Calibracao', 'ADC', 'Ideal', 'Baixo', 'Reservatorio') && (
+                                    <CartaoSecao titulo="Calibracao ao Vivo — Alerta de Nivel (Sensor de Contato, GPIO 36)">
+                                        <p className="hud-tag config-nota">
+                                            Acompanhamento ao vivo (atualiza a cada ~5s) do que o ESP32 esta lendo agora. Mova o sensor fisico
+                                            entre a posicao IDEAL e a posicao BAIXA (ainda toca a placa, mas e hora de completar), deixe alguns
+                                            segundos em cada uma, e anote os dois valores de ADC bruto. Os campos "IDEAL"/"BAIXO" abaixo SALVAM de
+                                            verdade no ESP32 (memoria NVS) e aplicam na hora — nao precisa reflashar o modulo pra reajustar depois.
+                                        </p>
+
+                                        {!moduloTelemetria && (
+                                            <p className="hud-tag">Cadastre um modulo do tipo "telemetria" pra acompanhar a calibracao.</p>
+                                        )}
+
+                                        {moduloTelemetria && !sensorAlertaNivel && (
+                                            <p className="hud-tag">
+                                                Sensor "alerta_nivel" ainda nao apareceu na ultima leitura do modulo — confira se o modulo esta
+                                                online e se o firmware ja tem esse sensor (38-espc).
+                                            </p>
+                                        )}
+
+                                        {sensorAlertaNivel && (
+                                            <>
+                                                <LinhaConfiguracao titulo="Estado Agora">
+                                                    <span className="hud-mono">{sensorAlertaNivel.estado ?? '--'}</span>
+                                                </LinhaConfiguracao>
+                                                <LinhaConfiguracao titulo="ADC Bruto Agora">
+                                                    <span className="hud-mono">{sensorAlertaNivel.adc_bruto?.toFixed(1) ?? '--'}</span>
+                                                </LinhaConfiguracao>
+                                                <LinhaConfiguracao titulo="Minimo Registrado (desde o ultimo reset)">
+                                                    <span className="hud-mono">{sensorAlertaNivel.adc_minimo_registrado?.toFixed(1) ?? '--'}</span>
+                                                </LinhaConfiguracao>
+                                                <LinhaConfiguracao titulo="Maximo Registrado (desde o ultimo reset)">
+                                                    <span className="hud-mono">{sensorAlertaNivel.adc_maximo_registrado?.toFixed(1) ?? '--'}</span>
+                                                </LinhaConfiguracao>
+                                                <button
+                                                    className="botao-primario"
+                                                    type="button"
+                                                    onClick={resetarRegistroAlertaNivel}
+                                                    disabled={resetandoRegistroAlertaNivel}
+                                                >
+                                                    {resetandoRegistroAlertaNivel ? 'Resetando...' : 'Resetar Minimo/Maximo Registrado'}
+                                                </button>
+
+                                                <hr className="hud-linha" />
+
+                                                <LinhaConfiguracao titulo="Calibracao: IDEAL (ADC)">
+                                                    <input
+                                                        className="hud-input config-input-pequeno"
+                                                        type="number"
+                                                        step="0.1"
+                                                        value={calibracaoAlertaNivelForm?.ideal ?? ''}
+                                                        onChange={(e) => atualizarCalibracaoAlertaNivelForm('ideal', e.target.value)}
+                                                    />
+                                                </LinhaConfiguracao>
+                                                <LinhaConfiguracao titulo="Calibracao: BAIXO (ADC)">
+                                                    <input
+                                                        className="hud-input config-input-pequeno"
+                                                        type="number"
+                                                        step="0.1"
+                                                        value={calibracaoAlertaNivelForm?.baixo ?? ''}
+                                                        onChange={(e) => atualizarCalibracaoAlertaNivelForm('baixo', e.target.value)}
+                                                    />
+                                                </LinhaConfiguracao>
+                                                <button
+                                                    className="botao-primario"
+                                                    type="button"
+                                                    onClick={salvarCalibracaoAlertaNivel}
+                                                    disabled={salvandoCalibracaoAlertaNivel}
+                                                >
+                                                    {salvandoCalibracaoAlertaNivel ? 'Salvando...' : 'Salvar Calibracao no ESP32'}
+                                                </button>
+                                            </>
+                                        )}
                                     </CartaoSecao>
                                 )}
 

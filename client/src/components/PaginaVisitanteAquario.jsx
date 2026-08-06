@@ -27,7 +27,7 @@ export default function PaginaVisitanteAquario() {
                     <Waves size={28} />
                     <Mountain size={28} />
                 </div>
-                <h2 className="vis-hero__titulo">Bem-vindo ao Aquario</h2>
+                <h2 className="vis-hero__titulo">Bem-vindo ao AquaControl</h2>
                 <p className="vis-hero__subtitulo">
                     Um ecossistema de agua doce construido em alvenaria, com mais de 1.500 litros e monitoramento automatizado 24 horas
                     por dia.

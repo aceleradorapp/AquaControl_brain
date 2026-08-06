@@ -1,6 +1,7 @@
 const db = require('../database/db');
 const { realizarHandshake } = require('../services/modulosService');
 const { estaOnline, verificarModulo } = require('../services/statusModulosService');
+const { registrarLog } = require('../services/logService');
 
 // SQLite não tem tipo booleano nativo (guarda 0/1) — converte pra true/false de verdade
 // antes de responder, senão o front-end recebe 1/0 em vez de true/false. "online" não vem
@@ -86,6 +87,20 @@ async function criarModulo(req, res) {
         handshake = await realizarHandshake(novoModulo);
     }
 
+    // Persistido no System Log (antes so existia como uma linha local/efemera no navegador de
+    // quem cadastrou — sumia do "Sensory & System Log Audit" e nao sobrevivia a um refresh).
+    if (handshake && !handshake.sucesso) {
+        registrarLog(
+            `Modulo "${novoModulo.nome}" cadastrado (${novoModulo.ip}), mas nao respondeu agora: ${handshake.motivo ?? 'sem detalhes.'}`,
+            'alerta',
+            'sistema',
+            null,
+            'manual'
+        );
+    } else {
+        registrarLog(`Modulo cadastrado: ${novoModulo.nome} (${novoModulo.ip}, tipo: ${novoModulo.tipo}).`, 'sucesso', 'sistema', null, 'manual');
+    }
+
     res.status(201).json({ ...formatarModulo(novoModulo), handshake });
 }
 
@@ -139,6 +154,8 @@ async function atualizarModulo(req, res) {
         handshake = await realizarHandshake(moduloAtualizado);
     }
 
+    registrarLog(`Modulo atualizado: ${moduloAtualizado.nome} (${moduloAtualizado.ip}).`, 'info', 'sistema', null, 'manual');
+
     res.json({ ...formatarModulo(moduloAtualizado), handshake });
 }
 
@@ -146,11 +163,15 @@ async function atualizarModulo(req, res) {
 // relacionados — ver FOREIGN KEY ... ON DELETE CASCADE em migrate.js)
 function deletarModulo(req, res) {
     const { id } = req.params;
-    const resultado = db.prepare('DELETE FROM modulos WHERE id = ?').run(id);
+    const moduloExistente = db.prepare('SELECT * FROM modulos WHERE id = ?').get(id);
 
-    if (resultado.changes === 0) {
+    if (!moduloExistente) {
         return res.status(404).json({ erro: 'Modulo nao encontrado.' });
     }
+
+    db.prepare('DELETE FROM modulos WHERE id = ?').run(id);
+
+    registrarLog(`Modulo removido: ${moduloExistente.nome} (${moduloExistente.ip}).`, 'alerta', 'sistema', null, 'manual');
 
     res.status(204).send();
 }

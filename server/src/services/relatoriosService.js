@@ -16,13 +16,18 @@ function obterFaixasSeguras() {
 
 // 24-espc: qual chave de "faixas_seguras" vale pra este sensor — "temp_agua"/"temp_ar" nao dao
 // mais pra decidir so pelo "tipo" cru do ESP (os dois chegam como "sensor_temp"), entao aqui
-// olha o ID especifico primeiro. Sensores de fluxo/inclinacao tem sua PROPRIA calibracao
-// (ver obterCalibracaoFluxoAtual/tratamento do "nivel de agua" abaixo), nao usam faixa_segura.
+// olha o ID especifico primeiro. Fluxo tem sua PROPRIA calibracao (ver obterCalibracaoFluxoAtual
+// abaixo), nao usa faixa_segura.
 function chaveFaixaDoSensor(sensorId, tipo) {
     if (sensorId.startsWith('temp_agua')) return 'temp_agua';
     if (sensorId === 'temp_ar') return 'temp_ar';
     if (tipo === 'sensor_ph') return 'ph_agua';
     if (tipo === 'sensor_umidade') return 'umidade_ar';
+    // 38-espc: "alerta_nivel" usa o MESMO mecanismo generico de faixa segura das linhas abaixo
+    // (min/max editavel em Configuracoes -> Limites e Calibracao) — sem bloco especial dedicado
+    // como o antigo "inclinacao" tinha; o percentual clampado 0-100 ja cobre BAIXO+CRITICO como
+    // "abaixo do minimo seguro" (ver faixas_seguras default: min=1).
+    if (tipo === 'sensor_alerta_nivel') return 'alerta_nivel';
     return null;
 }
 
@@ -110,9 +115,9 @@ function obterRelatorioTelemetria(inicioSql, fimSql) {
 
     const faixasSeguras = obterFaixasSeguras();
     const seriePorTimestamp = new Map();
-    // 27-espc: "nivel" (nivel_agua, % continuo) entra aqui como mais um grupo numerico — ao
-    // contrario de "vazamento" (booleano, excluido da query acima e tratado so em
-    // obterRelatorioAlertas, mesmo idioma da inclinacao/fluxo).
+    // 27-espc: "nivel" (id "alerta_nivel", renomeado de "nivel_agua" no 38-espc — % continuo,
+    // clampado 0-100) entra aqui como mais um grupo numerico — ao contrario de "vazamento"
+    // (booleano, excluido da query acima e tratado so em obterRelatorioAlertas).
     const valoresPorGrupo = { agua: [], ar: [], umidade: [], ph: [], nivel: [] };
     const anomalias = [];
     let totalNumericoComFaixa = 0;
@@ -139,7 +144,7 @@ function obterRelatorioTelemetria(inicioSql, fimSql) {
         else if (linha.sensor_id === 'temp_ar') valoresPorGrupo.ar.push(valor);
         else if (linha.sensor_id === 'umidade_ar') valoresPorGrupo.umidade.push(valor);
         else if (linha.sensor_id === 'ph_agua') valoresPorGrupo.ph.push(valor);
-        else if (linha.sensor_id === 'nivel_agua') valoresPorGrupo.nivel.push(valor);
+        else if (linha.sensor_id === 'alerta_nivel') valoresPorGrupo.nivel.push(valor);
 
         if (ehAgua) {
             rastreadorAgua.atualizar(linha.sensor_id, valor, true);
@@ -195,7 +200,7 @@ function obterRelatorioTelemetria(inicioSql, fimSql) {
             temperaturaAr: resumoNumerico(valoresPorGrupo.ar),
             umidadeAr: resumoNumerico(valoresPorGrupo.umidade),
             ph: resumoNumerico(valoresPorGrupo.ph),
-            nivelAgua: resumoNumerico(valoresPorGrupo.nivel),
+            alertaNivel: resumoNumerico(valoresPorGrupo.nivel),
             estabilidade,
         },
         faixasSeguras,
@@ -437,17 +442,10 @@ async function obterRelatorioAlertas(inicioSql, fimSql) {
         }
         ultimoConectado.set(linha.sensor_id, conectadoAgora);
 
-        // 24-espc: sensor de inclinacao repurposado pra indicar NIVEL DE AGUA do aquario (nao
-        // mais "esta tombado") — so o rotulo/descricao mudam, o sensor fisico e o dado bruto
-        // (bool) continuam os mesmos.
-        if (linha.sensor_id === 'inclinacao' && conectadoAgora) {
-            if (linha.valor === 'true') {
-                log.push({ timestamp: linha.criado_em, origem: 'ESP_Sensor', categoria: 'Alerta de Nivel de Agua', descricao: `${linha.nome}: nivel de agua fora do esperado`, sensorId: linha.sensor_id, resolvido: null });
-            } else if (linha.valor === 'false') {
-                marcarResolvido('inclinacao', 'Alerta de Nivel de Agua', linha.criado_em);
-            }
-            continue;
-        }
+        // 38-espc: o antigo bloco especial de "inclinacao" (sensor removido do firmware) saiu
+        // daqui — "alerta_nivel" (o sensor que substituiu esse papel) nao precisa de um bloco
+        // dedicado, ele cai naturalmente no mecanismo generico de faixa segura mais abaixo
+        // (chaveFaixaDoSensor + emViolacao), que ja gera "Valor Fora do Limite" na transicao.
 
         // 27-espc: sensor de vazamento — mesmo idioma de transicao do "Alerta de Nivel de
         // Agua" acima (loga so quando entra/sai do estado de agua detectada).

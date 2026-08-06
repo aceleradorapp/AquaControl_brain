@@ -21,6 +21,7 @@ function obterIntervaloConfiguradoMs() {
 
 let ultimaLeitura = null; // { disponivel, timestamp_ms, sensores: [...] } — ver GET /api/sensores do ESP
 const ultimosValoresGravados = new Map(); // sensor_id -> valor (String ou null) ja gravado no historico
+let ultimosSensoresConhecidos = []; // ultima lista de sensores (com tipo/nome/unidade) recebida com sucesso
 
 function buscarModuloTelemetria() {
     return db.prepare("SELECT * FROM modulos WHERE tipo = 'telemetria' ORDER BY id LIMIT 1").get();
@@ -97,6 +98,28 @@ function registrarMudancas(moduloId, sensores) {
     }
 }
 
+// Marca TODOS os sensores conhecidos como desconectados quando o MODULO inteiro para de
+// responder (ip errado, ESP desligado, rede fora) — antes disso, um modulo offline nao
+// gravava NADA em historico_sensores (cicloSensores so zerava o cache em RAM e saia), entao
+// o "Historico Termico" simplesmente parava de crescer no ultimo valor bom, sem nenhum
+// registro explicito de "ficou offline aqui". So grava na TRANSICAO online->offline (chamada
+// so quando "ultimaLeitura" ainda nao era null) — reaproveita o mesmo dedupe por sensor de
+// registrarMudancas (ultimosValoresGravados), entao ciclos de poll subsequentes com o modulo
+// ainda offline nao re-gravam a cada 5s.
+function registrarDesconexaoTotal(moduloId) {
+    for (const sensor of ultimosSensoresConhecidos) {
+        const valorAnterior = ultimosValoresGravados.has(sensor.id) ? ultimosValoresGravados.get(sensor.id) : undefined;
+        if (valorAnterior === null) continue; // ja registrado como desconectado antes
+        inserirHistorico.run(moduloId, sensor.id, sensor.tipo, sensor.nome, null, sensor.unidade ?? null, 0, null);
+        ultimosValoresGravados.set(sensor.id, null);
+    }
+}
+
+function marcarOffline(moduloId) {
+    if (ultimaLeitura) registrarDesconexaoTotal(moduloId);
+    ultimaLeitura = null;
+}
+
 async function cicloSensores() {
     const modulo = buscarModuloTelemetria();
     if (!modulo) {
@@ -107,19 +130,20 @@ async function cicloSensores() {
     try {
         const resposta = await fetch(`http://${modulo.ip}/api/sensores`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
         if (!resposta.ok) {
-            ultimaLeitura = null;
+            marcarOffline(modulo.id);
             return;
         }
         const dados = await resposta.json();
         if (!dados.disponivel || !Array.isArray(dados.sensores)) {
-            ultimaLeitura = null;
+            marcarOffline(modulo.id);
             return;
         }
 
         ultimaLeitura = { ...dados, sensores: aplicarNomesPersonalizados(aplicarCalibracaoTempAgua(dados.sensores)) };
+        ultimosSensoresConhecidos = ultimaLeitura.sensores;
         registrarMudancas(modulo.id, ultimaLeitura.sensores);
     } catch {
-        ultimaLeitura = null;
+        marcarOffline(modulo.id);
     }
 }
 

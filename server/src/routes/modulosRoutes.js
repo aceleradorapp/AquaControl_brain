@@ -1,7 +1,17 @@
 const express = require('express');
 const { listarModulos, criarModulo, atualizarModulo, deletarModulo } = require('../controllers/modulosController');
 const { buscarPortas, salvarPortas } = require('../controllers/portasMapeamentoController');
-const { consultarReles, acionarReles, consultarStatusEsp, consultarSensoresEsp, configurarDispositivoEsp, configurarProtecaoEsp, testarArcosEsp } = require('../controllers/relesController');
+const {
+    consultarReles,
+    acionarReles,
+    consultarStatusEsp,
+    consultarSensoresEsp,
+    configurarDispositivoEsp,
+    configurarProtecaoEsp,
+    testarArcosEsp,
+    resetarRegistroAlertaNivelEsp,
+    salvarCalibracaoAlertaNivelEsp,
+} = require('../controllers/relesController');
 const { listarTemas, criarTema } = require('../controllers/temasController');
 
 const router = express.Router();
@@ -41,6 +51,13 @@ router.post('/:id/config-protecao', configurarProtecaoEsp);
 // POST /api/teste-arcos do proprio ESP32 (07-espc: varredura de teste dos arcos agua/ar/
 // umidade) — usado pelo botao "Testar Sensores no Display" no modal Diagnostico Completo.
 router.post('/:id/teste-arcos', testarArcosEsp);
+
+// POST /api/alerta-nivel/resetar-calibracao e /api/alerta-nivel/calibracao do proprio ESP32
+// (38-espc, renomeado de "nivel-agua") — usados pelo card de calibracao ao vivo do sensor de
+// Alerta de Nivel em Configuracoes -> Sensores & Telemetria (a segunda rota e o que torna a
+// calibracao editavel pelo site, sem precisar reflashar o modulo).
+router.post('/:id/alerta-nivel/resetar-calibracao', resetarRegistroAlertaNivelEsp);
+router.post('/:id/alerta-nivel/calibracao', salvarCalibracaoAlertaNivelEsp);
 
 // Temas (14-espc): grupos nomeados de relés com estado definido, escolhidos a partir do
 // Mapeamento de Portas — ver 01-espc-geral/14_menu_de_acoes.md. Deletar/aplicar um tema

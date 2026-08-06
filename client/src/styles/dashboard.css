@@ -331,6 +331,30 @@
     opacity: 0.55;
 }
 
+/* --- Widget Alerta de Nivel (38-espc) --- */
+.widget-alerta-nivel__corpo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--espaco-md) 0;
+}
+.widget-alerta-nivel__diagnostico {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--espaco-sm);
+    padding-top: var(--espaco-sm);
+    border-top: 1px solid var(--cor-borda);
+}
+.widget-alerta-nivel__diagnostico-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.widget-alerta-nivel__diagnostico-item .hud-mono {
+    font-size: 0.95rem;
+    color: var(--cor-texto);
+}
+
 /* --- Nivel de Agua (27-espc) --- */
 .medidor-nivel-agua {
     display: flex;
@@ -514,6 +538,14 @@
 .widget-energia__tendencia--baixa {
     color: var(--cor-sucesso);
 }
+/* Preenche o espaco que sobra do card depois do cabecalho/KPIs (altura fixa do card, ver
+   .widget-energia em widgets-layout.css) — o grafico crescia so 130px fixos antes, deixando
+   uma faixa vazia embaixo quando o card ficou mais alto; agora o ResponsiveContainer (100%)
+   ocupa o restante de verdade. */
+.widget-energia__grafico {
+    flex: 1;
+    min-height: 0;
+}
 
 /* --- Barra de energia (Umidade do Ar) --- */
 .barra-energia {
@@ -571,15 +603,15 @@
     margin-bottom: var(--espaco-sm);
 }
 
-/* Altura fixa + scroll (14-espc, reduzida no 17-espc) — a lista podia crescer e empurrar o
-   resto da coluna pra baixo quando havia muita saída mapeada; agora fica num tamanho
-   previsível, com scroll interno (mesmo padrão de .gestao-esps__lista). Calibrada pra
-   mostrar ~5 itens de cada vez (item de ~45px + gap de 8px) — o resto rola. */
+/* Scroll interno (14-espc, reduzida no 17-espc, altura fixa substituida por flex no ajuste de
+   altura padronizada dos widgets — ver .painel-equipamentos em widgets-layout.css) — a lista
+   ocupa o espaco que sobrar do card depois do cabecalho/abas, rolando o resto internamente. */
 .painel-equipamentos__lista {
     display: flex;
     flex-direction: column;
     gap: var(--espaco-sm);
-    max-height: 260px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding-right: 4px;
 }
@@ -1122,6 +1154,34 @@
     font-size: 0.85rem;
     color: var(--cor-primaria);
 }
+/* Dentro do widget "Sensores do Sistema" (altura fixa, ver .widget-sensores-sistema em
+   widgets-layout.css) o grid de cartoes ocupa o espaco que sobra do cabecalho/media
+   consolidada e rola internamente — escopado a esse widget so, pra nao afetar outros lugares
+   que reaproveitam ".diagrama-sensores" (ex.: EsquematicoSensores.jsx). Colunas mais estreitas
+   + cartoes mais compactos + nome numa linha so (com "..." + title com o nome completo) —
+   pedido do usuario: os ~10 sensores de hoje precisam caber SEM rolar, o scroll e so pra
+   quando mais sensores forem cadastrados no futuro. */
+.widget-sensores-sistema .diagrama-sensores {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    gap: 6px;
+}
+.widget-sensores-sistema .diagrama-sensores__card {
+    gap: 2px;
+    padding: 6px;
+}
+.widget-sensores-sistema .diagrama-sensores__nome {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.widget-sensores-sistema .sensores-sistema__media {
+    padding: 5px var(--espaco-sm);
+    margin-bottom: 6px;
+}
 .diagrama-sensores__card.desconectado .diagrama-sensores__valor {
     color: var(--cor-erro);
 }
@@ -1205,10 +1265,14 @@
 }
 
 /* --- Terminal de logs --- */
+/* Preenche o espaco que sobra do card depois do cabecalho (altura fixa do card definida em
+   .terminal-logs, ver widgets-layout.css) — "max-height" fixo virou "flex: 1", senao sobraria
+   espaco vazio embaixo do corpo sempre que o card ficasse mais alto que os 220px de antes. */
 .terminal-logs__corpo {
     font-family: var(--fonte-mono);
     font-size: 0.76rem;
-    max-height: 220px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;

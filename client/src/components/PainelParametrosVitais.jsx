@@ -1,7 +1,6 @@
 import SensorGauge from './SensorGauge';
 import BarraEnergiaHud from './BarraEnergiaHud';
 import BarraVazaoHud from './BarraVazaoHud';
-import MedidorNivelAgua from './MedidorNivelAgua';
 import AlertaVazamento from './AlertaVazamento';
 
 // Extraido do JSX inline do Dashboard.jsx (20-espc, layout de widgets moviveis) — precisava
@@ -13,14 +12,14 @@ import AlertaVazamento from './AlertaVazamento';
 // Dashboard.jsx pra como "ativa"/valorLh sao decididos (leitura ao vivo enquanto flui, ultima
 // leitura conhecida + "INATIVA" quando a bomba/fluxo para). Sem o sensor correspondente
 // cadastrado/conectado, a prop chega "undefined"/"null" e o elemento simplesmente nao aparece
-// — nenhum destes 3 sensores novos (nivel, vazamento, fluxo 2) e obrigatorio pro resto do
-// painel continuar funcionando exatamente como antes.
+// — nenhum desses sensores e obrigatorio pro resto do painel continuar funcionando exatamente
+// como antes. 38-espc: o gauge de Alerta de Nivel saiu daqui — agora e o widget proprio
+// WidgetAlertaNivel.jsx (registroWidgets.alertaNivel em Dashboard.jsx).
 export default function PainelParametrosVitais({
     valorAgua,
     valorAmbiente,
     umidadeAr,
     vazao,
-    nivelAguaPercentual,
     vazamentoDetectado,
     vazao2,
 }) {
@@ -36,7 +35,6 @@ export default function PainelParametrosVitais({
             <div className="gauges-painel__grid">
                 <SensorGauge titulo="AGUA" valor={valorAgua} cor="var(--cor-primaria)" />
                 <SensorGauge titulo="AMBIENTE" valor={valorAmbiente} cor="var(--cor-laranja)" />
-                {typeof nivelAguaPercentual === 'number' && <MedidorNivelAgua percentual={nivelAguaPercentual} />}
             </div>
             <hr className="hud-linha" />
             <BarraEnergiaHud titulo="UMIDADE DO AR" valor={umidadeAr} cor="var(--cor-secundaria)" />

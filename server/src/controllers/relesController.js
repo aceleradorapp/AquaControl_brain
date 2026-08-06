@@ -229,4 +229,71 @@ async function testarArcosEsp(req, res) {
     }
 }
 
-module.exports = { consultarReles, acionarReles, consultarStatusEsp, consultarSensoresEsp, configurarDispositivoEsp, configurarProtecaoEsp, testarArcosEsp };
+// POST /api/modulos/:id/alerta-nivel/resetar-calibracao — proxy pro POST
+// /api/alerta-nivel/resetar-calibracao do proprio ESP32 do modulo de telemetria (38-espc,
+// renomeado de "nivel-agua"): zera o minimo/maximo de ADC bruto registrados durante um teste
+// de calibracao do sensor de Alerta de Nivel, sem precisar reiniciar o ESP. Usado pelo card de
+// calibracao ao vivo em Configuracoes -> Sensores & Telemetria.
+async function resetarRegistroAlertaNivelEsp(req, res) {
+    const { id } = req.params;
+    const modulo = buscarModulo(id);
+
+    if (!modulo) {
+        return res.status(404).json({ erro: 'Modulo nao encontrado.' });
+    }
+
+    try {
+        const resposta = await fetch(`http://${modulo.ip}/api/alerta-nivel/resetar-calibracao`, {
+            method: 'POST',
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        const dados = await resposta.json();
+        if (!resposta.ok) {
+            return res.json({ disponivel: false, motivo: dados.status || `ESP respondeu HTTP ${resposta.status}` });
+        }
+        res.json({ disponivel: true, ...dados });
+    } catch (erro) {
+        res.json({ disponivel: false, motivo: `Nao foi possivel falar com o modulo em ${modulo.ip}: ${erro.message}` });
+    }
+}
+
+// POST /api/modulos/:id/alerta-nivel/calibracao — proxy pro POST /api/alerta-nivel/calibracao
+// do ESP (38-espc): body { ideal, baixo } repassado sem alteracao — o ESP salva na NVS e
+// aplica na hora, sem reiniciar. E o que torna a calibracao editavel pelo site (antes exigia
+// reflashar o firmware pra mudar NIVEL_ADC_VAZIO/NIVEL_ADC_CHEIO).
+async function salvarCalibracaoAlertaNivelEsp(req, res) {
+    const { id } = req.params;
+    const modulo = buscarModulo(id);
+
+    if (!modulo) {
+        return res.status(404).json({ erro: 'Modulo nao encontrado.' });
+    }
+
+    try {
+        const resposta = await fetch(`http://${modulo.ip}/api/alerta-nivel/calibracao`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body),
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        const dados = await resposta.json();
+        if (!resposta.ok) {
+            return res.json({ disponivel: false, motivo: dados.status || `ESP respondeu HTTP ${resposta.status}` });
+        }
+        res.json({ disponivel: true, ...dados });
+    } catch (erro) {
+        res.json({ disponivel: false, motivo: `Nao foi possivel falar com o modulo em ${modulo.ip}: ${erro.message}` });
+    }
+}
+
+module.exports = {
+    consultarReles,
+    acionarReles,
+    consultarStatusEsp,
+    consultarSensoresEsp,
+    configurarDispositivoEsp,
+    configurarProtecaoEsp,
+    testarArcosEsp,
+    resetarRegistroAlertaNivelEsp,
+    salvarCalibracaoAlertaNivelEsp,
+};

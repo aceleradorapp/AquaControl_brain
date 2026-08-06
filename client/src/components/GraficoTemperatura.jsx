@@ -46,6 +46,28 @@ function formatarTickEixoX(timestampSql, periodo) {
     return `${data.getHours()}h`;
 }
 
+// Marcacoes do eixo X (29-espc): o dominio agora e fixo (ver "dominioTempo" no componente,
+// resolve o grafico esticando dados velhos pra preencher tudo), mas isso sozinho fazia o
+// Recharts sempre calcular ~5 marcas evenly-spaced sobre o dominio inteiro (tickCount padrao
+// do d3-scale), TRAVADO em ~4-6h de intervalo sempre — a amostragem escolhida no combo deixou
+// de ter qualquer efeito na regua de baixo, so no "liso" da curva. Aqui o passo entre marcas e
+// arredondado pra um multiplo exato do tamanho do bloco de amostragem (pra cada marca cair
+// bem em cima de um bloco de verdade, nao um instante arbitrario entre dois blocos), calculado
+// pra render entre IDEAL_TICKS marcas, ancoradas em "agora" (fimMs) andando pra tras — assim
+// amostragem fina (30min) da uma regua mais granular, e amostragem grossa (12h) da uma regua
+// mais espacada, do jeito que o combo sugere.
+const IDEAL_TICKS_EIXO_X = 6;
+function calcularTicksEixoX([inicioMs, fimMs], amostragemMinutos) {
+    const passoBloco = Math.max(Number(amostragemMinutos) || 1, 1) * 60 * 1000;
+    const spanMs = fimMs - inicioMs;
+    const passoIdeal = spanMs / IDEAL_TICKS_EIXO_X;
+    const passoMs = Math.max(passoBloco, Math.ceil(passoIdeal / passoBloco) * passoBloco);
+
+    const ticks = [];
+    for (let t = fimMs; t >= inicioMs; t -= passoMs) ticks.push(t);
+    return ticks.reverse();
+}
+
 function carregarAmostragemSalva() {
     if (typeof localStorage === 'undefined') return AMOSTRAGEM_PADRAO;
     return localStorage.getItem(CHAVE_LOCALSTORAGE_AMOSTRAGEM) || AMOSTRAGEM_PADRAO;
@@ -103,7 +125,23 @@ export default function GraficoTemperatura({ dadosSensores }) {
     const aguaAtivos = ['temp_agua_1', 'temp_agua_2', 'temp_agua_3'].filter((id) => sensoresPorId[id]?.conectado);
     const nomeSensor = (id, padrao) => sensoresPorId[id]?.nomeDisplay ?? padrao;
 
-    const serieAgrupada = dados?.disponivel ? agruparSerieTemporal(dados.serieTemporal, Number(amostragemMinutos)) : [];
+    // "timestampMs" (numero) e o que alimenta o eixo X de verdade (ver XAxis abaixo) — sem
+    // isso o Recharts usa escala categorica (so plota os pontos que EXISTEM, esticados pra
+    // preencher a largura toda do card), entao um sensor offline ha horas/dias fica
+    // indistinguivel de "esta tudo em dia": os ultimos pontos reais simplesmente esticam ate
+    // preencher o grafico inteiro, sem nenhum indicio visual do buraco de dados.
+    const serieAgrupada = dados?.disponivel
+        ? agruparSerieTemporal(dados.serieTemporal, Number(amostragemMinutos)).map((ponto) => ({
+              ...ponto,
+              timestampMs: paraDate(ponto.timestamp)?.getTime() ?? null,
+          }))
+        : [];
+    // Dominio fixo = o periodo pedido de verdade (agora - 24h/30d ate agora), NAO
+    // "dataMin/dataMax" dos pontos existentes — e o que faz o gap aparecer como um espaco em
+    // branco real no lado direito do grafico quando o modulo esta offline, em vez de o
+    // Recharts esconder o buraco esticando os ultimos dados bons pra preencher tudo.
+    const agoraMs = Date.now();
+    const dominioTempo = [agoraMs - (periodo === '24h' ? UM_DIA_MS : TRINTA_DIAS_MS), agoraMs];
 
     function alternarSerie(chave) {
         setSeriesOcultas((atual) => ({ ...atual, [chave]: !atual[chave] }));
@@ -195,7 +233,11 @@ export default function GraficoTemperatura({ dadosSensores }) {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 240, 255, 0.08)" vertical={false} />
                         <XAxis
-                            dataKey="timestamp"
+                            dataKey="timestampMs"
+                            type="number"
+                            domain={dominioTempo}
+                            ticks={calcularTicksEixoX(dominioTempo, amostragemMinutos)}
+                            allowDataOverflow
                             tickFormatter={(v) => formatarTickEixoX(v, periodo)}
                             tick={{ fill: '#5f8aa3', fontSize: 11 }}
                             axisLine={{ stroke: '#124059' }}
@@ -274,11 +316,16 @@ export default function GraficoTemperatura({ dadosSensores }) {
                             />
                         ))}
 
+                        {/* Temp. Ambiente: posicionada depois dos sensores de agua na legenda (pedido do
+                            usuario, 28-espc) — ordem de renderizacao aqui = ordem na legenda do Recharts.
+                            Nome fixo "Temp. Ambiente" em vez de nomeSensor(): o nomeDisplay real desse
+                            sensor ("T. Ar") foi encurtado pra caber no Display fisico (16-espc), o que
+                            nao se aplica aqui — este grafico tem espaco de sobra. */}
                         <Line
                             yAxisId="temp"
                             type="monotone"
                             dataKey="temp_ar"
-                            name={nomeSensor('temp_ar', 'Ambiente')}
+                            name="Temp. Ambiente"
                             stroke={CORES.ambiente}
                             strokeWidth={2.5}
                             dot={false}

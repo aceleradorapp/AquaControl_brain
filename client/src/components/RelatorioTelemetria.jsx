@@ -46,14 +46,14 @@ export default function RelatorioTelemetria({ dados, carregando, nomesSensores =
                 <CartaoKPI titulo="TEMP. AR (MEDIA)" valor={dados.kpis.temperaturaAr?.media ?? null} unidade="°C" cor={CORES.ar} />
                 <CartaoKPI titulo="UMIDADE DO AR (MEDIA)" valor={dados.kpis.umidadeAr?.media ?? null} unidade="%" cor={CORES.umidade} />
                 <CartaoKPI titulo="PH (MEDIO)" valor={dados.kpis.ph?.media ?? null} cor={CORES.ph} />
-                <CartaoKPI titulo="NIVEL AGUA (MEDIO)" valor={dados.kpis.nivelAgua?.media ?? null} unidade="%" cor={CORES.nivel} />
+                <CartaoKPI titulo="ALERTA NIVEL (MEDIO)" valor={dados.kpis.alertaNivel?.media ?? null} unidade="%" cor={CORES.nivel} />
                 <CartaoKPI titulo="ESTABILIDADE" valor={dados.kpis.estabilidade} unidade="%" cor="var(--cor-sucesso)" />
             </div>
             <div className="relatorio-kpis__legenda">
                 {dados.kpis.temperaturaAgua && <span className="hud-tag">Agua: {textoResumo(dados.kpis.temperaturaAgua, '°C')}</span>}
                 {dados.kpis.temperaturaAr && <span className="hud-tag">Ar: {textoResumo(dados.kpis.temperaturaAr, '°C')}</span>}
                 {dados.kpis.ph && <span className="hud-tag">pH: {textoResumo(dados.kpis.ph, '')}</span>}
-                {dados.kpis.nivelAgua && <span className="hud-tag">Nivel: {textoResumo(dados.kpis.nivelAgua, '%')}</span>}
+                {dados.kpis.alertaNivel && <span className="hud-tag">Nivel: {textoResumo(dados.kpis.alertaNivel, '%')}</span>}
             </div>
 
             <div className="hud-painel">

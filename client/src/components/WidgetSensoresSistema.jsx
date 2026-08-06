@@ -19,7 +19,7 @@ export default function WidgetSensoresSistema({ dadosSensores, mediaAgua }) {
     const totalOnline = catalogo.filter((s) => s.conectado).length;
 
     return (
-        <div className="hud-painel">
+        <div className="hud-painel widget-sensores-sistema">
             <div className="painel-cabecalho">
                 <h2 className="hud-titulo">Sensores do Sistema // Live Feed</h2>
                 <span className="hud-tag sensores-sistema__contagem">
@@ -55,13 +55,15 @@ export default function WidgetSensoresSistema({ dadosSensores, mediaAgua }) {
                             return (
                                 <div key={sensor.id} className={`diagrama-sensores__card ${sensor.conectado ? 'conectado' : 'desconectado'}`}>
                                     <div className="diagrama-sensores__cabecalho">
-                                        <Icone size={16} />
+                                        <Icone size={13} />
                                         <span
                                             className={`hud-status-dot ${sensor.conectado ? 'online' : 'offline'}`}
                                             title={sensor.conectado ? 'Sensor conectado' : 'Sensor nao detectado'}
                                         />
                                     </div>
-                                    <span className="diagrama-sensores__nome">{sensor.nome}</span>
+                                    <span className="diagrama-sensores__nome" title={sensor.nome}>
+                                        {sensor.nome}
+                                    </span>
                                     <span className="diagrama-sensores__valor hud-mono">
                                         {sensor.conectado ? formatarValorSensor(sensor) : 'Desconectado'}
                                     </span>

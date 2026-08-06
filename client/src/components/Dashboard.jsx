@@ -32,6 +32,7 @@ import { useEhMobile } from '../hooks/useEhMobile';
 import HeaderTatico from './HeaderTatico';
 import AlertasConectividade from './AlertasConectividade';
 import PainelParametrosVitais from './PainelParametrosVitais';
+import WidgetAlertaNivel from './WidgetAlertaNivel';
 import GraficoTemperatura from './GraficoTemperatura';
 import WidgetConsumoEnergia from './WidgetConsumoEnergia';
 import PainelEquipamentos from './PainelEquipamentos';
@@ -111,13 +112,14 @@ function carregarEscalaWidgetsSalva() {
 
 const COLUNAS = ['coluna0', 'coluna1', 'coluna2'];
 const LAYOUT_PADRAO = {
-    coluna0: ['parametrosVitais', 'historicoTermico', 'consumoEnergia', 'sensoresDisplay'],
+    coluna0: ['parametrosVitais', 'alertaNivel', 'historicoTermico', 'consumoEnergia', 'sensoresDisplay'],
     coluna1: ['centralAquario', 'matrizReles', 'temas', 'agendamentos'],
     coluna2: ['modulosControladores', 'qrcodes', 'systemLog'],
 };
 
 const VISIBILIDADE_PADRAO = {
     parametrosVitais: true,
+    alertaNivel: true,
     historicoTermico: true,
     consumoEnergia: true,
     centralAquario: true,
@@ -134,6 +136,7 @@ const VISIBILIDADE_PADRAO = {
 // Central do Aquario), o resto na mesma ordem que ja tinham no layout padrao de desktop.
 const LAYOUT_MOBILE_PADRAO = [
     'parametrosVitais',
+    'alertaNivel',
     'centralAquario',
     'agendamentos',
     'temas',
@@ -797,11 +800,9 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
             }
 
             setModulos((atual) => [...atual, dados]);
-            if (dados.handshake && !dados.handshake.sucesso) {
-                registrarLog(`Modulo "${dados.nome}" cadastrado, mas nao respondeu agora: ${dados.handshake.motivo ?? 'sem detalhes.'}`, 'alerta');
-            } else {
-                registrarLog(`Modulo cadastrado: ${dados.nome} (${dados.ip})`, 'sucesso');
-            }
+            // Nao ecoa localmente aqui — o backend ja persiste essa linha no System Log
+            // (modulosController.js), e o poll de 5s do useEffect acima traz ela pro widget.
+            // Um eco local aqui duplicaria a mesma mensagem (uma "local-", outra "srv-").
             return { sucesso: true };
         } catch {
             registrarLog('Falha ao cadastrar modulo.', 'erro');
@@ -810,12 +811,11 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
     }
 
     async function removerModulo(id) {
-        const modulo = modulos.find((m) => m.id === id);
         try {
             const resposta = await fetch(`/api/modulos/${id}`, { method: 'DELETE' });
             if (!resposta.ok && resposta.status !== 204) throw new Error();
             setModulos((atual) => atual.filter((m) => m.id !== id));
-            registrarLog(`Modulo removido: ${modulo?.nome ?? id}`, 'alerta');
+            // Idem criarModulo acima: backend ja persiste, sem eco local pra nao duplicar.
         } catch {
             registrarLog('Falha ao remover modulo.', 'erro');
         }
@@ -1375,12 +1375,17 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
           }
         : null;
 
-    // Nivel de Agua (27-espc) — sensor analogico continuo (0-100%), sempre "conectado" (ver
-    // firmware) enquanto o modulo de telemetria estiver acessivel. Nao precisa do tratamento
-    // de "ultima leitura conhecida" da vazao — nao existe um estado "parado" equivalente pra
-    // este sensor, ele sempre devolve uma leitura, mesmo com o reservatorio vazio.
-    const sensorNivelAguaReal = sensoresReais.find((s) => s.id === 'nivel_agua' && s.conectado);
-    const nivelAguaPercentual = sensorNivelAguaReal ? Number(sensorNivelAguaReal.valor) : null;
+    // Alerta de Nivel (27-espc, renomeado de "Nivel de Agua" no 38-espc — sensor de CONTATO,
+    // nao um medidor continuo real; "Nivel de Agua" fica reservado pro futuro sensor
+    // ultrassonico) — percentual 0-100 (0% cobre tanto o ponto BAIXO quanto CRITICO, ver
+    // firmware), sempre "conectado" enquanto o modulo de telemetria estiver acessivel. Nao
+    // precisa do tratamento de "ultima leitura conhecida" da vazao — nao existe um estado
+    // "parado" equivalente pra este sensor, ele sempre devolve uma leitura.
+    const sensorAlertaNivelReal = sensoresReais.find((s) => s.id === 'alerta_nivel' && s.conectado);
+    const nivelAguaPercentual = sensorAlertaNivelReal ? Number(sensorAlertaNivelReal.valor) : null;
+    // "estado" (IDEAL/BAIXO/CRITICO, 38-espc) e so-informativo, nao vem do calculo do percentual
+    // acima — usado pelo widget dedicado (WidgetAlertaNivel) pro badge de estado no cabecalho.
+    const alertaNivelEstado = sensorAlertaNivelReal?.estado ?? null;
 
     // Deteccao de Vazamento (27-espc) — booleano simples, sem "ultima leitura conhecida": um
     // vazamento so importa AGORA, nao faz sentido "congelar" um alerta de um vazamento que ja
@@ -1434,11 +1439,16 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
                     valorAmbiente={valorAmbienteAtual}
                     umidadeAr={umidadeArExibida}
                     vazao={vazaoExibida}
-                    nivelAguaPercentual={nivelAguaPercentual}
                     vazamentoDetectado={vazamentoDetectado}
                     vazao2={vazao2Exibida}
                 />
             ),
+        },
+        alertaNivel: {
+            titulo: 'Alerta de Nivel',
+            icone: <Gauge size={20} />,
+            resumo: alertaNivelEstado ?? (typeof nivelAguaPercentual === 'number' ? `${Math.round(nivelAguaPercentual)}%` : null),
+            render: () => <WidgetAlertaNivel sensor={sensorAlertaNivelReal} />,
         },
         historicoTermico: {
             titulo: 'Historico Termico',

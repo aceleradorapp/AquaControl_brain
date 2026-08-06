@@ -15,6 +15,30 @@
     opacity: 0.45;
 }
 
+/* Altura padronizada entre 6 widgets (pedido do usuario — um unico grupo agora, na altura de
+   "Consumo de Energia"), os demais widgets fora destes 6 continuam com altura livre (auto, do
+   proprio conteudo). Cada card mantem o cabecalho fixo e rola so o conteudo internamente
+   quando nao cabe, em vez de esticar o card ou cortar informacao. */
+.gauges-painel,
+.widget-sensores-sistema,
+.painel-equipamentos,
+.grafico-temperatura,
+.widget-energia,
+.terminal-logs {
+    height: 380px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+/* gauges-painel/grafico-temperatura/widget-energia nao tem um unico filho "lista" pra
+   flexar — o conteudo deles e curto o bastante pra caber na pratica, entao rolam por conta
+   propria (scroll no proprio painel) se um dia precisar, em vez de cortar. */
+.gauges-painel,
+.grafico-temperatura,
+.widget-energia {
+    overflow-y: auto;
+}
+
 /* --- Alca de arrastar: barra fina acima do card, nunca sobrepoe nada do widget em si --- */
 .widget-slot__grip {
     display: flex;

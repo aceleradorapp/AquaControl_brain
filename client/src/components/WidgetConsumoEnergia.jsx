@@ -125,26 +125,28 @@ export default function WidgetConsumoEnergia({ onAbrirRelatorioCompleto }) {
                     </div>
 
                     {dados.kwhPorDia.length > 0 && (
-                        <ResponsiveContainer width="100%" height={130}>
-                            <BarChart data={dados.kwhPorDia} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,240,255,0.08)" vertical={false} />
-                                <XAxis
-                                    dataKey="dia"
-                                    tickFormatter={formatarDiaCurto}
-                                    tick={{ fill: '#5f8aa3', fontSize: 10 }}
-                                    axisLine={{ stroke: '#124059' }}
-                                    tickLine={false}
-                                    minTickGap={20}
-                                />
-                                <YAxis tick={{ fill: '#5f8aa3', fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
-                                <Tooltip
-                                    contentStyle={{ background: '#071527', border: '1px solid #124059', fontFamily: 'Share Tech Mono, monospace', fontSize: 12 }}
-                                    labelFormatter={formatarDiaCurto}
-                                    formatter={(valor) => [`${valor} kWh`, 'Consumo']}
-                                />
-                                <Bar dataKey="kwh" name="kWh" fill="#ffbe00" radius={[3, 3, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <div className="widget-energia__grafico">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={dados.kwhPorDia} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,240,255,0.08)" vertical={false} />
+                                    <XAxis
+                                        dataKey="dia"
+                                        tickFormatter={formatarDiaCurto}
+                                        tick={{ fill: '#5f8aa3', fontSize: 10 }}
+                                        axisLine={{ stroke: '#124059' }}
+                                        tickLine={false}
+                                        minTickGap={20}
+                                    />
+                                    <YAxis tick={{ fill: '#5f8aa3', fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
+                                    <Tooltip
+                                        contentStyle={{ background: '#071527', border: '1px solid #124059', fontFamily: 'Share Tech Mono, monospace', fontSize: 12 }}
+                                        labelFormatter={formatarDiaCurto}
+                                        formatter={(valor) => [`${valor} kWh`, 'Consumo']}
+                                    />
+                                    <Bar dataKey="kwh" name="kWh" fill="#ffbe00" radius={[3, 3, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     )}
                 </>
             )}

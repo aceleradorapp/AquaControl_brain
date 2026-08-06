@@ -9,8 +9,8 @@ export const ICONES_SENSOR = {
     sensor_umidade: Droplets,
     sensor_fluxo: Waves,
     sensor_ph: FlaskConical,
-    sensor_inclinacao: Compass,
-    sensor_nivel: Gauge,
+    sensor_inclinacao: Compass, // sem sensor ativo hoje (38-espc) — mapeamento mantido caso volte no futuro
+    sensor_alerta_nivel: Gauge,
     sensor_vazamento: AlertTriangle,
 };
 

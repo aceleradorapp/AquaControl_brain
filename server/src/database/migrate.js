@@ -614,6 +614,12 @@ function runMigrations(db) {
     inserirFaixaSeAusente.run('temp_ar', 22, 28);
     inserirFaixaSeAusente.run('ph_agua', 6.5, 7.5);
     inserirFaixaSeAusente.run('umidade_ar', 30, 80);
+    // 38-espc: "alerta_nivel" (sensor de contato, GPIO 36 do modulo de telemetria) — min=1 e o
+    // limiar generico que dispara "Valor Fora do Limite" assim que o percentual clampado chega
+    // a 0% (cobre tanto o ponto BAIXO quanto CRITICO, ver relatoriosService.js/main.cpp). max=100
+    // nunca dispara de verdade (o percentual nunca ultrapassa 100), so completa o par min/max
+    // exigido pela tabela.
+    inserirFaixaSeAusente.run('alerta_nivel', 1, 100);
 
     // 19-espc: Equipamentos & Automacao — termostato por histerese (aquecedor/resfriador),
     // multiplos e independentes, cada um observando UM sensor e controlando UM rele. "tipo"

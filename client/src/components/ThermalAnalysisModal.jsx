@@ -4,7 +4,7 @@ import { Download } from 'lucide-react';
 import ModalHud from './ModalHud';
 import CartaoKPI from './CartaoKPI';
 import EstadoVazioRelatorio from './EstadoVazioRelatorio';
-import { formatarDataHora, formatarHoraCurta } from '../utils/formatoRelatorio';
+import { paraDate, formatarDataHora, formatarHoraCurta } from '../utils/formatoRelatorio';
 import { exportarCsv } from '../utils/exportarRelatorio';
 
 const CORES = {
@@ -29,7 +29,7 @@ const ROTULO_COLUNA_CSV = {
     temp_ar: 'Ambiente (C)',
     umidade_ar: 'Umidade (%)',
     ph_agua: 'pH',
-    nivel_agua: 'Nivel Agua (%)',
+    alerta_nivel: 'Alerta Nivel (%)',
 };
 
 function arredondar(numero, casas = 1) {
@@ -109,6 +109,16 @@ export default function ThermalAnalysisModal({ aberto, onFechar, dadosSensores }
     const aguaAtivos = ['temp_agua_1', 'temp_agua_2', 'temp_agua_3'].filter((id) => sensoresPorId[id]?.conectado);
     const nomeSensor = (id, padrao) => sensoresPorId[id]?.nomeDisplay ?? padrao;
 
+    // Mesmo motivo do widget compacto (GraficoTemperatura.jsx, 29-espc): eixo X precisa de
+    // escala de tempo NUMERICA com dominio fixo (o intervalo pedido de verdade), senao um
+    // sensor offline durante parte do periodo fica invisivel — os pontos reais so esticam pra
+    // preencher o grafico inteiro em vez de deixar um espaco em branco onde faltam dados.
+    const { inicio: inicioIntervalo, fim: fimIntervalo } = calcularIntervalo(periodo, dataEspecifica, horaInicio, horaFim);
+    const dominioTempo = [inicioIntervalo.getTime(), fimIntervalo.getTime()];
+    const serieComMs = dados?.disponivel
+        ? dados.serieTemporal.map((ponto) => ({ ...ponto, timestampMs: paraDate(ponto.timestamp)?.getTime() ?? null }))
+        : [];
+
     const kpiAgua = dados?.disponivel ? dados.kpis.temperaturaAgua : null;
     const picoUmidade = dados?.disponivel ? dados.kpis.umidadeAr?.max ?? null : null;
     const delta = kpiAgua ? arredondar(kpiAgua.max - kpiAgua.min, 1) : null;
@@ -187,7 +197,7 @@ export default function ThermalAnalysisModal({ aberto, onFechar, dadosSensores }
 
                         <div className="central-relatorios__conteudo hud-scrollbar">
                             <ResponsiveContainer width="100%" height={440}>
-                                <ComposedChart data={dados.serieTemporal} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                                <ComposedChart data={serieComMs} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="gradienteMediaAguaDeepDive" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="0%" stopColor={CORES.media} stopOpacity={0.35} />
@@ -196,7 +206,10 @@ export default function ThermalAnalysisModal({ aberto, onFechar, dadosSensores }
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(0, 240, 255, 0.08)" vertical={false} />
                                     <XAxis
-                                        dataKey="timestamp"
+                                        dataKey="timestampMs"
+                                        type="number"
+                                        domain={dominioTempo}
+                                        allowDataOverflow
                                         tickFormatter={formatarHoraCurta}
                                         tick={{ fill: '#5f8aa3', fontSize: 11 }}
                                         axisLine={{ stroke: '#124059' }}
@@ -256,11 +269,13 @@ export default function ThermalAnalysisModal({ aberto, onFechar, dadosSensores }
                                             connectNulls
                                         />
                                     ))}
+                                    {/* Nome fixo (nao nomeSensor): o nomeDisplay real ("T. Ar") foi encurtado
+                                        pra caber no Display fisico (16-espc) — nao se aplica aqui. */}
                                     <Line
                                         yAxisId="temp"
                                         type="monotone"
                                         dataKey="temp_ar"
-                                        name={nomeSensor('temp_ar', 'Ambiente')}
+                                        name="Temp. Ambiente"
                                         stroke={CORES.ambiente}
                                         strokeWidth={2.5}
                                         dot={false}
@@ -279,7 +294,7 @@ export default function ThermalAnalysisModal({ aberto, onFechar, dadosSensores }
                                         connectNulls
                                     />
 
-                                    <Brush dataKey="timestamp" height={26} stroke={CORES.media} tickFormatter={formatarHoraCurta} travellerWidth={8} />
+                                    <Brush dataKey="timestampMs" height={26} stroke={CORES.media} tickFormatter={formatarHoraCurta} travellerWidth={8} />
                                 </ComposedChart>
                             </ResponsiveContainer>
                         </div>
