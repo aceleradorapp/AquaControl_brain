@@ -1,8 +1,11 @@
 // Nivel de Agua do Reservatorio (27-espc) — reservatorio visual em SVG (nao uma barra
 // generica), preenchimento sobe/desce com o percentual real. Cor muda de vermelho (critico)
 // a ciano (cheio), mesma logica de "escala colorida por posicao" ja usada em BarraVazaoHud.
-const LARGURA = 90;
-const ALTURA = 120;
+// 40-espc: proporcao PAISAGEM (mais largo que alto) e cantos quase retos — pedido explicito do
+// usuario ("deixe ele retangular como o aquario"), o aquario real e uma caixa baixa e larga
+// (200x80x130cm), nao um tubo alto e estreito como o desenho original.
+const LARGURA = 150;
+const ALTURA = 95;
 const PAREDE = 4;
 const MARCAS = [25, 50, 75];
 
@@ -24,7 +27,7 @@ export default function MedidorNivelAgua({ percentual, titulo = 'NIVEL RESERVATO
     return (
         <div className="medidor-nivel-agua">
             <svg className="medidor-nivel-agua__svg" viewBox={`0 0 ${LARGURA} ${ALTURA}`} role="img" aria-label="Nivel de agua do reservatorio">
-                <rect x={PAREDE / 2} y={PAREDE / 2} width={LARGURA - PAREDE} height={ALTURA - PAREDE} rx={6} className="medidor-nivel-agua__casco" />
+                <rect x={PAREDE / 2} y={PAREDE / 2} width={LARGURA - PAREDE} height={ALTURA - PAREDE} rx={3} className="medidor-nivel-agua__casco" />
 
                 {temLeitura && (
                     <rect
@@ -32,7 +35,7 @@ export default function MedidorNivelAgua({ percentual, titulo = 'NIVEL RESERVATO
                         y={yAgua}
                         width={LARGURA - PAREDE * 2}
                         height={alturaAgua}
-                        rx={3}
+                        rx={1}
                         className="medidor-nivel-agua__preenchimento"
                         style={{ fill: cor, filter: `drop-shadow(0 0 4px ${cor})` }}
                     />

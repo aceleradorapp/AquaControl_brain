@@ -82,11 +82,16 @@ function calibrarOffsetNivelUltrassom(req, res) {
     const leitura = obterUltimaLeitura();
     const sensor = leitura?.disponivel ? leitura.sensores?.find((s) => s.id === 'nivel_agua') : null;
 
-    if (!sensor || !sensor.conectado || typeof sensor.valor !== 'number') {
+    // BUG (corrigido): "sensor.valor" NAO e mais a distancia crua aqui — sensoresTelemetriaService.js
+    // (aplicarCalculoNivelUltrassom) ja reescreveu "valor" pro PERCENTUAL calculado antes de cachear
+    // em obterUltimaLeitura(), guardando a distancia original separadamente em "distancia_cm". Usar
+    // "valor" aqui criava um loop: salvava o percentual (ja errado) como se fosse cm, entao qualquer
+    // recalibracao so reforcava o mesmo erro (nunca convergia pro valor real).
+    if (!sensor || !sensor.conectado || typeof sensor.distancia_cm !== 'number') {
         return res.status(409).json({ erro: 'Sem leitura valida do sensor ultrassonico agora — confira se o modulo esta online e o sensor conectado.' });
     }
 
-    const distanciaAtualCm = sensor.valor;
+    const distanciaAtualCm = sensor.distancia_cm;
     db.prepare(
         `INSERT INTO configuracoes_gerais (chave, valor, atualizado_em) VALUES ('aquario_distancia_offset_cm', ?, CURRENT_TIMESTAMP)
          ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor, atualizado_em = CURRENT_TIMESTAMP`

@@ -614,12 +614,14 @@ function runMigrations(db) {
     inserirFaixaSeAusente.run('temp_ar', 22, 28);
     inserirFaixaSeAusente.run('ph_agua', 6.5, 7.5);
     inserirFaixaSeAusente.run('umidade_ar', 30, 80);
-    // 38-espc: "alerta_nivel" (sensor de contato, GPIO 36 do modulo de telemetria) — min=1 e o
-    // limiar generico que dispara "Valor Fora do Limite" assim que o percentual clampado chega
-    // a 0% (cobre tanto o ponto BAIXO quanto CRITICO, ver relatoriosService.js/main.cpp). max=100
-    // nunca dispara de verdade (o percentual nunca ultrapassa 100), so completa o par min/max
-    // exigido pela tabela.
-    inserirFaixaSeAusente.run('alerta_nivel', 1, 100);
+    // 38-espc: "alerta_nivel" (sensor de contato, GPIO 36 do modulo de telemetria). 40-espc:
+    // logica INVERTIDA — agora e um alarme de TRANSBORDAMENTO (nivel alto demais), nao mais de
+    // nivel baixo (o "nivel_agua" via ultrassom, 39-espc, ja cobre a leitura precisa de nivel
+    // baixo/normal em %). max=90 e o limiar generico que dispara "Valor Fora do Limite" assim
+    // que o percentual passa de 90% (perto do ponto IDEAL/maximo aceitavel, ver
+    // relatoriosService.js/main.cpp). min=0 nunca dispara de verdade (o percentual nunca fica
+    // negativo), so completa o par min/max exigido pela tabela.
+    inserirFaixaSeAusente.run('alerta_nivel', 0, 90);
 
     // 19-espc: Equipamentos & Automacao — termostato por histerese (aquecedor/resfriador),
     // multiplos e independentes, cada um observando UM sensor e controlando UM rele. "tipo"

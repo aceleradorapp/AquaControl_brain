@@ -331,19 +331,52 @@
     opacity: 0.55;
 }
 
-/* --- Widget Alerta de Nivel (38-espc) --- */
+/* --- Widget Nivel da Agua do Aquario (38-espc como "Alerta de Nivel", renomeado 40-espc) --- */
 .widget-alerta-nivel__corpo {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: var(--espaco-md) 0;
+    padding: var(--espaco-sm) 0;
+}
+.widget-alerta-nivel__litros-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--espaco-sm);
+    padding-top: var(--espaco-sm);
+}
+.widget-alerta-nivel__litros-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-align: center;
+}
+.widget-alerta-nivel__litros-valor {
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-shadow: 0 0 6px currentColor;
+}
+.widget-alerta-nivel__distancia {
+    display: block;
+    text-align: center;
+    padding-top: 4px;
+}
+.widget-alerta-nivel__contato {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    padding-top: var(--espaco-sm);
+}
+.widget-alerta-nivel__contato-titulo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--cor-secundaria);
 }
 .widget-alerta-nivel__diagnostico {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: var(--espaco-sm);
-    padding-top: var(--espaco-sm);
-    border-top: 1px solid var(--cor-borda);
 }
 .widget-alerta-nivel__diagnostico-item {
     display: flex;
@@ -354,32 +387,6 @@
     font-size: 0.95rem;
     color: var(--cor-texto);
 }
-.widget-alerta-nivel__ultrassom {
-    display: flex;
-    flex-direction: column;
-    gap: var(--espaco-sm);
-    padding-top: var(--espaco-sm);
-}
-.widget-alerta-nivel__ultrassom-titulo {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--cor-secundaria);
-}
-.widget-alerta-nivel__ultrassom-litros {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-.widget-alerta-nivel__ultrassom-litros-atual {
-    font-size: 1.3rem;
-    font-weight: 700;
-    text-shadow: 0 0 8px currentColor;
-}
-.widget-alerta-nivel__ultrassom-distancia {
-    margin-left: auto;
-}
 
 /* --- Nivel de Agua (27-espc) --- */
 .medidor-nivel-agua {
@@ -389,8 +396,8 @@
     gap: 6px;
 }
 .medidor-nivel-agua__svg {
-    width: 66px;
-    height: 88px;
+    width: 130px;
+    height: 82px;
 }
 .medidor-nivel-agua__casco {
     fill: rgba(255, 255, 255, 0.02);

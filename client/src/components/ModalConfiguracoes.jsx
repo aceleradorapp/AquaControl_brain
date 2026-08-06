@@ -62,7 +62,7 @@ const MAPA_FAIXA_ROTULO = {
     temp_ar: 'Temperatura do Ar (°C)',
     ph_agua: 'pH da Agua',
     umidade_ar: 'Umidade do Ar (%)',
-    alerta_nivel: 'Alerta de Nivel (%) — abaixo deste valor dispara "Valor Fora do Limite"',
+    alerta_nivel: 'Alerta de Transbordamento (%) — acima deste valor dispara "Valor Fora do Limite"',
 };
 
 const MAPA_PINOS_SENSORES = [
@@ -378,12 +378,12 @@ export default function ModalConfiguracoes({
         }
     }
 
-    // Calibracao ao vivo do sensor "Alerta de Nivel" (38-espc, renomeado de "nivel de agua"):
+    // Calibracao ao vivo do sensor de contato (38-espc, renomeado de "nivel de agua"; 40-espc:
+    // virou um alarme de TRANSBORDAMENTO, nao mais de nivel baixo — ver WidgetAlertaNivel.jsx):
     // mostra o ADC bruto atual + o minimo/maximo que o firmware ja registra sozinho, reaproveita
     // o MESMO "dadosSensores" que ja chega por prop (poll de 5s do Dashboard, sem fetch proprio
-    // aqui). Os campos IDEAL/BAIXO abaixo SALVAM de verdade no ESP32 (NVS, POST /api/alerta-
-    // nivel/calibracao) — diferente da versao anterior (37-espc), nao precisa mais reflashar
-    // pra reajustar.
+    // aqui). Os campos abaixo SALVAM de verdade no ESP32 (NVS, POST /api/alerta-nivel/calibracao)
+    // — nao precisa reflashar pra reajustar.
     const [resetandoRegistroAlertaNivel, setResetandoRegistroAlertaNivel] = useState(false);
     const [calibracaoAlertaNivelForm, setCalibracaoAlertaNivelForm] = useState(null);
     const [salvandoCalibracaoAlertaNivel, setSalvandoCalibracaoAlertaNivel] = useState(false);
@@ -1211,13 +1211,14 @@ export default function ModalConfiguracoes({
                                     </CartaoSecao>
                                 )}
 
-                                {corresponde('Alerta de Nivel', 'Calibracao', 'ADC', 'Ideal', 'Baixo', 'Reservatorio') && (
-                                    <CartaoSecao titulo="Calibracao ao Vivo — Alerta de Nivel (Sensor de Contato, GPIO 36)">
+                                {corresponde('Alerta de Nivel', 'Transbordamento', 'Calibracao', 'ADC', 'Ideal', 'Baixo', 'Reservatorio') && (
+                                    <CartaoSecao titulo="Calibracao ao Vivo — Alarme de Transbordamento (Sensor de Contato, GPIO 36)">
                                         <p className="hud-tag config-nota">
-                                            Acompanhamento ao vivo (atualiza a cada ~5s) do que o ESP32 esta lendo agora. Mova o sensor fisico
-                                            entre a posicao IDEAL e a posicao BAIXA (ainda toca a placa, mas e hora de completar), deixe alguns
-                                            segundos em cada uma, e anote os dois valores de ADC bruto. Os campos "IDEAL"/"BAIXO" abaixo SALVAM de
-                                            verdade no ESP32 (memoria NVS) e aplicam na hora — nao precisa reflashar o modulo pra reajustar depois.
+                                            40-espc: este sensor de contato deixou de ser o alerta principal de nivel (isso agora e o "Nivel de
+                                            Agua" via ultrassom, mais preciso) e virou um alarme de TRANSBORDAMENTO — dispara quando a agua chega
+                                            perto/passa do ponto "Limite Maximo" abaixo. Mova o sensor fisico entre o ponto de limite maximo e um
+                                            ponto mais baixo, deixe alguns segundos em cada, e anote os dois valores de ADC bruto. Os campos abaixo
+                                            SALVAM de verdade no ESP32 (memoria NVS) e aplicam na hora — nao precisa reflashar pra reajustar.
                                         </p>
 
                                         {!moduloTelemetria && (
@@ -1256,7 +1257,7 @@ export default function ModalConfiguracoes({
 
                                                 <hr className="hud-linha" />
 
-                                                <LinhaConfiguracao titulo="Calibracao: IDEAL (ADC)">
+                                                <LinhaConfiguracao titulo="Limite Maximo / Transbordamento (ADC)" descricao="Acima disso, dispara CRITICO">
                                                     <input
                                                         className="hud-input config-input-pequeno"
                                                         type="number"
@@ -1265,7 +1266,7 @@ export default function ModalConfiguracoes({
                                                         onChange={(e) => atualizarCalibracaoAlertaNivelForm('ideal', e.target.value)}
                                                     />
                                                 </LinhaConfiguracao>
-                                                <LinhaConfiguracao titulo="Calibracao: BAIXO (ADC)">
+                                                <LinhaConfiguracao titulo="Aproximando do Limite (ADC)" descricao="Acima disso, dispara ATENCAO">
                                                     <input
                                                         className="hud-input config-input-pequeno"
                                                         type="number"

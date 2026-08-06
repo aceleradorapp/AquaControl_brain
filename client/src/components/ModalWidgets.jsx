@@ -4,7 +4,7 @@ import ModalHud from './ModalHud';
 // "visibilidadeWidgets" no Dashboard.jsx (é o que é persistido no localStorage).
 export const ROTULOS_WIDGETS = {
     parametrosVitais: 'Parametros Vitais',
-    alertaNivel: 'Alerta de Nivel',
+    alertaNivel: 'Nivel da Agua do Aquario',
     historicoTermico: 'Historico Termico',
     centralAquario: 'Central do Aquario',
     matrizReles: 'Diagnostico de Reles (16CH)',

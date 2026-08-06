@@ -1375,16 +1375,11 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
           }
         : null;
 
-    // Alerta de Nivel (27-espc, renomeado de "Nivel de Agua" no 38-espc — sensor de CONTATO,
-    // nao um medidor continuo real; "Nivel de Agua" fica reservado pro futuro sensor
-    // ultrassonico) — percentual 0-100 (0% cobre tanto o ponto BAIXO quanto CRITICO, ver
-    // firmware), sempre "conectado" enquanto o modulo de telemetria estiver acessivel. Nao
-    // precisa do tratamento de "ultima leitura conhecida" da vazao — nao existe um estado
-    // "parado" equivalente pra este sensor, ele sempre devolve uma leitura.
+    // Alerta de Nivel (27-espc; sensor de CONTATO, GPIO 36). 40-espc: virou um alarme de
+    // TRANSBORDAMENTO (nivel alto demais), nao mais de nivel baixo — o "estado" (agora
+    // NORMAL/ATENCAO/CRITICO) e o que importa aqui, o percentual numerico deste sensor nao e
+    // mais usado em lugar nenhum do Dashboard (o widget usa o objeto "sensor" cru direto).
     const sensorAlertaNivelReal = sensoresReais.find((s) => s.id === 'alerta_nivel' && s.conectado);
-    const nivelAguaPercentual = sensorAlertaNivelReal ? Number(sensorAlertaNivelReal.valor) : null;
-    // "estado" (IDEAL/BAIXO/CRITICO, 38-espc) e so-informativo, nao vem do calculo do percentual
-    // acima — usado pelo widget dedicado (WidgetAlertaNivel) pro badge de estado no cabecalho.
     const alertaNivelEstado = sensorAlertaNivelReal?.estado ?? null;
     // Nivel de Agua via ultrassom (39-espc) — sensor DIFERENTE de "alerta_nivel" acima, coexiste
     // com ele. "conectado" aqui reflete de verdade se o pulseIn() do ECHO recebeu resposta (nao
@@ -1450,9 +1445,15 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
             ),
         },
         alertaNivel: {
-            titulo: 'Alerta de Nivel',
+            titulo: 'Nivel da Agua do Aquario',
             icone: <Gauge size={20} />,
-            resumo: alertaNivelEstado ?? (typeof nivelAguaPercentual === 'number' ? `${Math.round(nivelAguaPercentual)}%` : null),
+            // 40-espc: prioriza o percentual do ULTRASSOM (leitura principal, precisa) no resumo
+            // do card compacto — o estado do sensor de contato (agora um alarme de
+            // transbordamento) so aparece como fallback se o ultrassom estiver indisponivel.
+            resumo:
+                typeof sensorNivelUltrassomReal?.valor === 'number'
+                    ? `${Math.round(sensorNivelUltrassomReal.valor)}%`
+                    : alertaNivelEstado ?? null,
             render: () => <WidgetAlertaNivel sensor={sensorAlertaNivelReal} sensorNivel={sensorNivelUltrassomReal} />,
         },
         historicoTermico: {
