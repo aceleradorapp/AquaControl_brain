@@ -1079,6 +1079,26 @@ export default function ModalConfiguracoes({
                                             a agua no nivel maximo desejado — use o botao abaixo pra capturar isso automaticamente em vez de medir
                                             na mao.
                                         </p>
+
+                                        {/* Leitura ao vivo em destaque, ANTES de qualquer campo — pedido explicito do usuario: precisa dar
+                                            pra confirmar que o sensor esta respondendo de verdade antes de mexer em qualquer configuracao ou
+                                            calibrar. Atualiza sozinha a cada poll (~5s, mesmo "dadosSensores" que o resto do dashboard usa). */}
+                                        <div className="config-nivel-ultrassom__leitura-vivo">
+                                            <span className="hud-tag">DISTANCIA LIDA AGORA (AO VIVO)</span>
+                                            <span
+                                                className={`config-nivel-ultrassom__leitura-valor hud-mono ${
+                                                    typeof sensorNivelUltrassom?.distancia_cm === 'number' ? '' : 'config-nivel-ultrassom__leitura-valor--vazia'
+                                                }`}
+                                            >
+                                                {typeof sensorNivelUltrassom?.distancia_cm === 'number' ? `${sensorNivelUltrassom.distancia_cm} cm` : '-- cm'}
+                                            </span>
+                                            {!sensorNivelUltrassom?.conectado && (
+                                                <span className="hud-tag config-nivel-ultrassom__leitura-aviso">
+                                                    Sensor nao esta respondendo agora — confira a fiacao (VIN/GND/TRIG 21/ECHO 22) antes de calibrar.
+                                                </span>
+                                            )}
+                                        </div>
+
                                         <LinhaConfiguracao titulo="Largura Util da Agua">
                                             <CampoNumero
                                                 valor={config.aquario_largura_cm}
@@ -1125,10 +1145,7 @@ export default function ModalConfiguracoes({
 
                                         <div className="config-nivel-ultrassom__acao">
                                             <span className="hud-tag">
-                                                Distancia lida agora:{' '}
-                                                <span className="hud-mono">
-                                                    {typeof sensorNivelUltrassom?.distancia_cm === 'number' ? `${sensorNivelUltrassom.distancia_cm} cm` : '--'}
-                                                </span>
+                                                Ao calibrar, o valor "distancia lida agora" (acima) vira o novo offset.
                                             </span>
                                             <button
                                                 className="botao-primario"

@@ -398,3 +398,28 @@
     padding: var(--espaco-sm) 0;
     flex-wrap: wrap;
 }
+.config-nivel-ultrassom__leitura-vivo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: var(--espaco-md);
+    margin-bottom: var(--espaco-sm);
+    background: rgba(var(--cor-primaria-rgb), 0.06);
+    border: 1px solid var(--cor-borda-forte);
+    border-radius: 4px;
+}
+.config-nivel-ultrassom__leitura-valor {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--cor-primaria);
+    text-shadow: 0 0 10px rgba(var(--cor-primaria-rgb), 0.6);
+}
+.config-nivel-ultrassom__leitura-valor--vazia {
+    color: var(--cor-texto-secundario);
+    text-shadow: none;
+    font-size: 1.3rem;
+}
+.config-nivel-ultrassom__leitura-aviso {
+    color: var(--cor-erro);
+}
