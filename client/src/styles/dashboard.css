@@ -310,6 +310,17 @@
     flex-wrap: wrap;
 }
 
+/* 41-espc: divisores deste widget um pouco mais enxutos que o ".hud-linha" padrao (8px de
+   margem de cada lado) — abre espaco pro divisor extra entre Umidade e Nivel de Agua sem
+   estourar a altura fixa do card (380px). O divisor "--nivel" e o UNICO com um pouco mais de
+   respiro (pedido explicito do usuario), os outros 3 ficam no padrao enxuto. */
+.gauges-painel__divisor {
+    margin: 6px 0;
+}
+.gauges-painel__divisor--nivel {
+    margin: 8px 0;
+}
+
 .sensor-gauge {
     display: flex;
     flex-direction: column;

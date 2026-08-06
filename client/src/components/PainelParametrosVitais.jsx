@@ -17,8 +17,9 @@ import AlertaVazamento from './AlertaVazamento';
 // WidgetAlertaNivel.jsx (registroWidgets.alertaNivel em Dashboard.jsx). 41-espc: a barra de
 // percentual do Nivel de Agua (sensor ultrassonico, 39-espc) voltou pra ca a pedido do usuario
 // — SEM crescer a altura fixa do card (380px, ver widgets-layout.css): os arcos de AGUA/
-// AMBIENTE encolheram de 120 pra 80px (ver SensorGauge.jsx) e a barra nova entra agrupada com
-// Umidade do Ar sob o MESMO divisor (uma <hr> a menos) pra caber com folga sem scroll.
+// AMBIENTE encolheram de 120 pra 80px (ver SensorGauge.jsx) e todos os divisores deste widget
+// ficaram um pouco mais enxutos (classe "gauges-painel__divisor", ver dashboard.css) pra abrir
+// espaco pro divisor extra entre Umidade e Nivel de Agua sem estourar a altura fixa.
 export default function PainelParametrosVitais({
     valorAgua,
     valorAmbiente,
@@ -41,14 +42,17 @@ export default function PainelParametrosVitais({
                 <SensorGauge titulo="AGUA" valor={valorAgua} cor="var(--cor-primaria)" />
                 <SensorGauge titulo="AMBIENTE" valor={valorAmbiente} cor="var(--cor-laranja)" />
             </div>
-            <hr className="hud-linha" />
+            <hr className="hud-linha gauges-painel__divisor" />
             <BarraEnergiaHud titulo="UMIDADE DO AR" valor={umidadeAr} cor="var(--cor-secundaria)" />
             {typeof nivelAguaPercentual === 'number' && (
-                <BarraEnergiaHud titulo="NIVEL DE AGUA" valor={nivelAguaPercentual} unidade="%" cor="var(--cor-primaria)" />
+                <>
+                    <hr className="hud-linha gauges-painel__divisor gauges-painel__divisor--nivel" />
+                    <BarraEnergiaHud titulo="NIVEL DE AGUA" valor={nivelAguaPercentual} unidade="%" cor="var(--cor-primaria)" />
+                </>
             )}
             {vazao && (
                 <>
-                    <hr className="hud-linha" />
+                    <hr className="hud-linha gauges-painel__divisor" />
                     <BarraVazaoHud
                         titulo="VAZAO DE AGUA"
                         valorLh={vazao.valorLh}
@@ -61,7 +65,7 @@ export default function PainelParametrosVitais({
             )}
             {vazao2 && (
                 <>
-                    <hr className="hud-linha" />
+                    <hr className="hud-linha gauges-painel__divisor" />
                     <BarraVazaoHud
                         titulo="VAZAO DE AGUA (CANAL 2)"
                         valorLh={vazao2.valorLh}
