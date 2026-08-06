@@ -70,7 +70,8 @@ const MAPA_PINOS_SENSORES = [
     { sensor: 'DHT11 (Temp./Umidade Ar)', pino: 'GPIO 19' },
     { sensor: 'YF-S201 (Fluxo)', pino: 'GPIO 23' },
     { sensor: 'pH (analogico)', pino: 'GPIO 34 (ADC, so leitura)' },
-    { sensor: '(livre — reservado para sensor futuro, 38-espc)', pino: 'GPIO 21' },
+    { sensor: 'Nivel de Agua (ultrassom, TRIG, 39-espc)', pino: 'GPIO 21' },
+    { sensor: 'Nivel de Agua (ultrassom, ECHO, 39-espc)', pino: 'GPIO 22' },
     { sensor: 'Alerta de Nivel (sensor de contato, 3 zonas, 38-espc)', pino: 'GPIO 36 (ADC1/VP, so leitura)' },
     { sensor: 'Deteccao de Vazamento (analogico, 27-espc)', pino: 'GPIO 39 (ADC1/VN, so leitura)' },
     { sensor: 'YF-S201 (Fluxo 2, 27-espc)', pino: 'GPIO 35 (so leitura)' },
@@ -446,6 +447,35 @@ export default function ModalConfiguracoes({
             registrarLog?.(erro.message || 'Falha ao salvar a calibracao do Alerta de Nivel.', 'erro');
         } finally {
             setSalvandoCalibracaoAlertaNivel(false);
+        }
+    }
+
+    // Calibracao do Nivel por Ultrassom (39-espc): as 4 dimensoes (largura/comprimento/altura/
+    // offset) sao parte do "config" generico (configuracoesGeraisController.js PADRAO), editam e
+    // salvam pelo botao "Salvar Alteracoes" comum — igual o offset de temperatura acima. So o
+    // botao "Calibrar Nivel Maximo (Zerar)" e uma acao PROPRIA que persiste na hora (nao espera
+    // o "Salvar" generico), porque ele le a DISTANCIA AO VIVO do sensor — nao e algo que o
+    // usuario digita, e um valor capturado do sensor real no momento do clique.
+    const [calibrandoOffsetUltrassom, setCalibrandoOffsetUltrassom] = useState(false);
+    const sensorNivelUltrassom = dadosSensores?.disponivel ? dadosSensores.sensores.find((s) => s.id === 'nivel_agua') : null;
+
+    async function calibrarOffsetUltrassom() {
+        setCalibrandoOffsetUltrassom(true);
+        try {
+            const resposta = await fetch('/api/configuracoes/calibrar-nivel-ultrassom', { method: 'POST' });
+            const dados = await resposta.json();
+            if (!resposta.ok) {
+                registrarLog?.(dados.erro ?? 'Falha ao calibrar o nivel maximo.', 'erro');
+                return;
+            }
+            const offsetString = String(dados.distanciaOffsetCm);
+            setConfig((atual) => ({ ...atual, aquario_distancia_offset_cm: offsetString }));
+            setConfigOriginal((atual) => ({ ...atual, aquario_distancia_offset_cm: offsetString }));
+            registrarLog?.(`Nivel maximo calibrado: offset = ${offsetString} cm.`, 'sucesso');
+        } catch (erro) {
+            registrarLog?.(erro.message || 'Falha ao calibrar o nivel maximo.', 'erro');
+        } finally {
+            setCalibrandoOffsetUltrassom(false);
         }
     }
 
@@ -1038,6 +1068,88 @@ export default function ModalConfiguracoes({
                                                 step={0.1}
                                             />
                                         </LinhaConfiguracao>
+                                    </CartaoSecao>
+                                )}
+
+                                {corresponde('Nivel por Ultrassom', 'Aquario', 'Volume', 'Litros', 'Offset', 'Calibracao') && (
+                                    <CartaoSecao titulo="Calibracao do Nivel por Ultrassom (Aquario)">
+                                        <p className="hud-tag config-nota">
+                                            Dimensoes UTEIS da area de agua (nao do vidro/estrutura) — usadas pra converter a distancia que o
+                                            sensor ultrassonico le em volume (litros) e porcentagem. "Distancia Offset" e a leitura do sensor com
+                                            a agua no nivel maximo desejado — use o botao abaixo pra capturar isso automaticamente em vez de medir
+                                            na mao.
+                                        </p>
+                                        <LinhaConfiguracao titulo="Largura Util da Agua">
+                                            <CampoNumero
+                                                valor={config.aquario_largura_cm}
+                                                onChange={(v) => atualizarConfig('aquario_largura_cm', v)}
+                                                unidade="cm"
+                                                min={1}
+                                                max={1000}
+                                                step={1}
+                                            />
+                                        </LinhaConfiguracao>
+                                        <LinhaConfiguracao titulo="Comprimento Util da Agua">
+                                            <CampoNumero
+                                                valor={config.aquario_comprimento_cm}
+                                                onChange={(v) => atualizarConfig('aquario_comprimento_cm', v)}
+                                                unidade="cm"
+                                                min={1}
+                                                max={1000}
+                                                step={1}
+                                            />
+                                        </LinhaConfiguracao>
+                                        <LinhaConfiguracao titulo="Altura Maxima da Coluna de Agua">
+                                            <CampoNumero
+                                                valor={config.aquario_altura_max_cm}
+                                                onChange={(v) => atualizarConfig('aquario_altura_max_cm', v)}
+                                                unidade="cm"
+                                                min={1}
+                                                max={500}
+                                                step={1}
+                                            />
+                                        </LinhaConfiguracao>
+                                        <LinhaConfiguracao
+                                            titulo="Distancia Offset (Zero do Sensor)"
+                                            descricao="Leitura do sensor com a agua no nivel maximo — em cm"
+                                        >
+                                            <CampoNumero
+                                                valor={config.aquario_distancia_offset_cm}
+                                                onChange={(v) => atualizarConfig('aquario_distancia_offset_cm', v)}
+                                                unidade="cm"
+                                                min={0}
+                                                max={500}
+                                                step={0.1}
+                                            />
+                                        </LinhaConfiguracao>
+
+                                        <div className="config-nivel-ultrassom__acao">
+                                            <span className="hud-tag">
+                                                Distancia lida agora:{' '}
+                                                <span className="hud-mono">
+                                                    {typeof sensorNivelUltrassom?.distancia_cm === 'number' ? `${sensorNivelUltrassom.distancia_cm} cm` : '--'}
+                                                </span>
+                                            </span>
+                                            <button
+                                                className="botao-primario"
+                                                type="button"
+                                                onClick={calibrarOffsetUltrassom}
+                                                disabled={calibrandoOffsetUltrassom || typeof sensorNivelUltrassom?.distancia_cm !== 'number'}
+                                            >
+                                                {calibrandoOffsetUltrassom ? 'Calibrando...' : 'Calibrar Nivel Maximo (Zerar)'}
+                                            </button>
+                                        </div>
+
+                                        <p className="hud-tag config-nota">
+                                            Volume maximo calculado com os valores acima:{' '}
+                                            <span className="hud-mono">
+                                                {(
+                                                    (Number(config.aquario_largura_cm) * Number(config.aquario_comprimento_cm) * Number(config.aquario_altura_max_cm)) /
+                                                    1000
+                                                ).toFixed(0)}{' '}
+                                                L
+                                            </span>
+                                        </p>
                                     </CartaoSecao>
                                 )}
 

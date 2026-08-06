@@ -14,23 +14,25 @@ export const MODULOS_ESP32 = [
         hostname: 'aquacontrol-sensor',
         caminhoCodigo: 'AquaControl_sensor/src/main.cpp',
         descricao:
-            'ESP32 DevKit dedicado a leitura de 9 sensores fisicos do aquario (27-espc, expandido do ' +
+            'ESP32 DevKit dedicado a leitura de 10 sensores fisicos do aquario (27-espc, expandido do ' +
             'conjunto original de 7 do 16-espc; 38-espc removeu o sensor de inclinacao e renomeou "nivel ' +
-            'de agua" pra "Alerta de Nivel"): 3x temperatura da agua, temperatura/umidade do ar, dois ' +
-            'canais de fluxo de agua, pH, Alerta de Nivel (sensor de contato, 3 zonas, calibracao editavel ' +
-            'pelo site) e deteccao de vazamento. GPIO 21 esta livre, reservado pra um sensor futuro. Todos ' +
-            'os sensores sao tolerantes a hot-plug (ou reportam "sempre conectado" quando o proprio tipo ' +
+            'de agua" pra "Alerta de Nivel"; 39-espc adicionou um novo "Nivel de Agua" via ultrassom): 3x ' +
+            'temperatura da agua, temperatura/umidade do ar, dois canais de fluxo de agua, pH, Alerta de ' +
+            'Nivel (sensor de contato, 3 zonas, calibracao editavel pelo site), Nivel de Agua (ultrassom, ' +
+            'distancia -> volume/porcentagem calculado pelo Brain) e deteccao de vazamento. Todos os ' +
+            'sensores sao tolerantes a hot-plug (ou reportam "sempre conectado" quando o proprio tipo ' +
             'de sensor nao permite distinguir ausencia de "sem sinal agora" — ver observacoes): nenhum ' +
             'sensor especifico trava o loop principal se falhar ou for desconectado.',
         pinosEsquerda: [
             { pino: 'GPIO 18', sinal: 'OneWire (1-Wire)', componente: '3x DS18B20 — Temp. da Agua', tensao: '3.3V' },
             { pino: 'GPIO 19', sinal: 'Digital (protocolo proprio)', componente: 'DHT11 — Temp./Umidade do Ar', tensao: '3.3V/5V' },
+            { pino: 'GPIO 21', sinal: 'Digital (saida, pulso)', componente: 'Ultrassom — TRIG (39-espc)', tensao: '3.3V' },
+            { pino: 'GPIO 22', sinal: 'Digital (entrada, pulseIn)', componente: 'Ultrassom — ECHO (39-espc, precisa de divisor se modulo 5V)', tensao: '3.3V (com divisor)' },
             { pino: 'GPIO 23', sinal: 'Interrupcao (FALLING)', componente: 'YF-S201 — Fluxo de Agua (canal 1)', tensao: '5V' },
             { pino: 'GPIO 35', sinal: 'Interrupcao (FALLING, ADC1)', componente: 'Fluxo de Agua — Canal 2', tensao: '5V' },
             { pino: 'GPIO 34', sinal: 'Analogico (ADC1, so leitura)', componente: 'Modulo de pH', tensao: '3.3V' },
         ],
         pinosDireita: [
-            { pino: 'GPIO 21', sinal: '(livre)', componente: 'Reservado para sensor futuro (38-espc)', tensao: '—' },
             { pino: 'GPIO 36', sinal: 'Analogico (ADC1 / VP, so leitura)', componente: 'Alerta de Nivel (sensor de contato, 3 zonas)', tensao: '3.3V' },
             { pino: 'GPIO 39', sinal: 'Analogico (ADC1 / VN, so leitura)', componente: 'Deteccao de Vazamento', tensao: '3.3V' },
             { pino: 'GPIO 2', sinal: 'Digital (saida)', componente: 'LED azul onboard (status Wi-Fi)', tensao: '3.3V' },
@@ -39,9 +41,11 @@ export const MODULOS_ESP32 = [
         observacoes: [
             'O barramento OneWire (GPIO 18) suporta ate 3 sensores DS18B20 simultaneos — os enderecos sao descobertos por varredura automatica no boot, sem precisar configurar endereco de fabrica.',
             'O modulo de pH PRECISA de calibracao manual com solucoes tampao (buffer pH 4.0 e 7.0) — os valores de fabrica no codigo sao so um ponto de partida.',
-            '38-espc: o sensor de inclinacao (SW-520D, GPIO 21) foi removido do firmware por decisao do usuario — o pino esta livre, reservado pra um sensor futuro.',
+            '38-espc: o sensor de inclinacao (SW-520D, GPIO 21) foi removido do firmware por decisao do usuario — o pino ficou livre.',
+            '39-espc: GPIO 21/22 (livres desde o 38-espc) foram escolhidos de proposito LONGE da faixa 34-39 pro sensor ultrassonico novo, por causa de um problema de hardware ainda em investigacao no Alerta de Nivel (GPIO 36) — evita reaproveitar uma area da placa sob suspeita.',
             '27-espc: GPIOs 34-39 (pH, alerta de nivel, vazamento) sao ADC1-only e NAO TEM resistor de pull interno — nenhum problema pra leitura analogica, mas o segundo canal de fluxo (GPIO 35, tambem nessa faixa) depende do proprio modulo sensor Hall ja ter pull-up embutido pra pulsos digitais limpos.',
             '38-espc: a calibracao do Alerta de Nivel (pontos IDEAL/BAIXO) e EDITAVEL pelo site (Configuracoes -> Sensores & Telemetria), salva na NVS do ESP32 — nao precisa mais reflashar pra reajustar. Deteccao de vazamento continua com limiar fixo no codigo, ainda precisa de calibracao manual/reflash.',
+            '39-espc: o sensor ultrassonico manda so a DISTANCIA crua (cm) — o calculo de volume/porcentagem usa as dimensoes do aquario configuradas em Configuracoes -> Sensores & Telemetria -> Calibracao do Nivel por Ultrassom, nao vive no firmware.',
             'GPIO 4 (LED_RED) esta reservado no mapeamento de pinos mas ainda NAO tem logica de acionamento no firmware — hoje so o LED verde (GPIO 2, status Wi-Fi) esta implementado.',
         ],
     },

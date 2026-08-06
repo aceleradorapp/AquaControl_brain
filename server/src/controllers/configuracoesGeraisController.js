@@ -1,4 +1,5 @@
 const db = require('../database/db');
+const { obterUltimaLeitura } = require('../services/sensoresTelemetriaService');
 
 // Configuracoes Globais do Sistema (19-espc) — armazem generico chave/valor
 // (configuracoes_gerais) pra preferencias que nao justificam uma tabela propria. "PADRAO" e
@@ -28,6 +29,15 @@ const PADRAO = {
     // relatorio de Energia — '0' = tarifa nao configurada, a UI esconde o "custo em R$" e
     // mostra so kWh (nunca inventa um preco).
     tarifa_energia_kwh: '0',
+    // 39-espc: dimensoes uteis do aquario (cm) + offset de instalacao do sensor ultrassonico
+    // (GPIO 21/22 do AquaControl_sensor) — usados por sensoresTelemetriaService.js pra converter
+    // a DISTANCIA crua que o ESP manda em volume (L) e porcentagem. "aquario_distancia_offset_cm"
+    // comeca em '0' (nao calibrado) — normalmente setado pelo botao "Calibrar Nivel Maximo
+    // (Zerar)" (ver calibrarOffsetNivelUltrassom abaixo), nao digitado a mao.
+    aquario_largura_cm: '200',
+    aquario_comprimento_cm: '80',
+    aquario_altura_max_cm: '130',
+    aquario_distancia_offset_cm: '0',
 };
 
 function obterConfiguracoesGerais(req, res) {
@@ -59,6 +69,30 @@ function salvarConfiguracoesGerais(req, res) {
 
     const linhas = db.prepare('SELECT chave, valor FROM configuracoes_gerais').all();
     res.json({ ...PADRAO, ...Object.fromEntries(linhas.map((l) => [l.chave, l.valor])) });
+}
+
+// POST /api/configuracoes/calibrar-nivel-ultrassom (39-espc) — botao "Calibrar Nivel Maximo
+// (Zerar)": pega a DISTANCIA instantanea que o sensor ultrassonico esta lendo AGORA (do cache
+// em RAM de sensoresTelemetriaService.js, poll de ate 5s, mesma fonte que o resto do dashboard
+// ja usa — sem fazer um fetch novo no ESP aqui) e salva como "aquario_distancia_offset_cm".
+// Nao aceita um valor arbitrario do client de proposito — o objetivo e capturar exatamente o
+// que o sensor esta vendo com a agua no nivel maximo/desejado, nao deixar o usuario digitar um
+// numero por engano.
+function calibrarOffsetNivelUltrassom(req, res) {
+    const leitura = obterUltimaLeitura();
+    const sensor = leitura?.disponivel ? leitura.sensores?.find((s) => s.id === 'nivel_agua') : null;
+
+    if (!sensor || !sensor.conectado || typeof sensor.valor !== 'number') {
+        return res.status(409).json({ erro: 'Sem leitura valida do sensor ultrassonico agora — confira se o modulo esta online e o sensor conectado.' });
+    }
+
+    const distanciaAtualCm = sensor.valor;
+    db.prepare(
+        `INSERT INTO configuracoes_gerais (chave, valor, atualizado_em) VALUES ('aquario_distancia_offset_cm', ?, CURRENT_TIMESTAMP)
+         ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor, atualizado_em = CURRENT_TIMESTAMP`
+    ).run(String(distanciaAtualCm));
+
+    res.json({ status: 'ok', distanciaOffsetCm: distanciaAtualCm });
 }
 
 // GET/PUT /api/configuracoes/faixas-seguras — antes uma constante hardcoded em
@@ -202,6 +236,7 @@ function restaurarBackup(req, res) {
 module.exports = {
     obterConfiguracoesGerais,
     salvarConfiguracoesGerais,
+    calibrarOffsetNivelUltrassom,
     obterFaixasSeguras,
     salvarFaixasSeguras,
     obterCalibracaoFluxo,

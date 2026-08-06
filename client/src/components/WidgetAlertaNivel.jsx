@@ -1,13 +1,14 @@
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Waves } from 'lucide-react';
 import MedidorNivelAgua from './MedidorNivelAgua';
+import BarraEnergiaHud from './BarraEnergiaHud';
 
 // Widget "Alerta de Nivel" (38-espc) — antes vivia espremido dentro da grade de 3 colunas do
-// widget "Parametros Vitais" (junto com AGUA/AMBIENTE); virou um widget PROPRIO a pedido do
-// usuario, com espaco de sobra pra quando o sensor ultrassonico de "Nivel de Agua" (medida
-// continua em litros, ver 37-espc — ainda nao implementado) for instalado: a ideia e esse
-// futuro valor entrar aqui do lado do alerta atual, nao substituir/disputar espaco com ele —
-// os dois sao leituras DIFERENTES do mesmo reservatorio (uma e um alerta de 3 zonas por
-// contato, a outra vai ser um volume real).
+// widget "Parametros Vitais" (junto com AGUA/AMBIENTE); virou um widget PROPRIO. 39-espc: ganhou
+// a segunda leitura que estava reservada desde o inicio — o sensor ultrassonico "Nivel de Agua"
+// (distancia -> volume/porcentagem, calculado pelo Brain, ver sensoresTelemetriaService.js). Os
+// dois sensores sao INDEPENDENTES e continuam coexistindo lado a lado: "Alerta de Nivel"
+// (contato, 3 zonas — bom pra alarme rapido/robusto) e "Nivel de Agua" (ultrassom, continuo e
+// preciso — bom pra saber exatamente quantos litros tem).
 const ROTULO_ESTADO = {
     IDEAL: 'IDEAL',
     BAIXO: 'NIVEL BAIXO',
@@ -24,16 +25,23 @@ function numeroOuTraco(valor, casas = 0) {
     return typeof valor === 'number' ? valor.toFixed(casas) : '--';
 }
 
-// "sensor" e o objeto CRU vindo de GET /api/sensores (via dadosSensores do Dashboard, poll de
-// 5s) — usa direto em vez de props separadas pra nao perder nenhum campo novo que o firmware
-// mandar (adc_bruto/adc_minimo_registrado/adc_maximo_registrado/ideal_adc/baixo_adc), pedido
-// explicito do usuario pra acompanhar ADC bruto + minimo + maximo AO VIVO no proprio widget (nao
-// so na tela de Configuracoes) pra validar se o sensor fisico esta respondendo de verdade.
-export default function WidgetAlertaNivel({ sensor }) {
+function formatarLitros(valor) {
+    return typeof valor === 'number' ? valor.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '--';
+}
+
+// "sensor" = objeto cru do sensor "alerta_nivel" (contato, GPIO 36); "sensorNivel" = objeto cru
+// do sensor "nivel_agua" (ultrassom, 39-espc), ambos vindos de GET /api/sensores (via
+// dadosSensores do Dashboard, poll de 5s) — usa os objetos direto em vez de props separadas pra
+// nao perder nenhum campo novo que o firmware/Brain mandarem.
+export default function WidgetAlertaNivel({ sensor, sensorNivel }) {
     const percentual = typeof sensor?.valor === 'number' ? sensor.valor : null;
     const estado = sensor?.estado ?? null;
     const temLeitura = typeof percentual === 'number';
     const cor = estado ? COR_ESTADO[estado] ?? 'var(--cor-texto-secundario)' : 'var(--cor-texto-secundario)';
+
+    const nivelPercentual = typeof sensorNivel?.valor === 'number' ? sensorNivel.valor : null;
+    const temNivelUltrassom = typeof nivelPercentual === 'number';
+    const corUltrassom = nivelPercentual !== null && nivelPercentual <= 15 ? 'var(--cor-erro)' : nivelPercentual <= 35 ? 'var(--cor-alerta)' : 'var(--cor-secundaria)';
 
     return (
         <div className="hud-painel widget-alerta-nivel">
@@ -55,8 +63,6 @@ export default function WidgetAlertaNivel({ sensor }) {
                 <>
                     <div className="widget-alerta-nivel__corpo">
                         <MedidorNivelAgua percentual={percentual} titulo="RESERVATORIO (CONTATO)" />
-                        {/* Espaco reservado: quando o sensor ultrassonico de Nivel de Agua (litros
-                            reais) existir, uma segunda leitura entra aqui — ver comentario no topo. */}
                     </div>
 
                     {/* Diagnostico ao vivo (38-espc) — mesmos campos do card de calibracao em
@@ -84,6 +90,34 @@ export default function WidgetAlertaNivel({ sensor }) {
                     </div>
                 </>
             )}
+
+            {/* --- Nivel de Agua (Ultrassom, 39-espc) — leitura precisa em %/litros --- */}
+            <hr className="hud-linha" />
+            <div className="widget-alerta-nivel__ultrassom">
+                <div className="widget-alerta-nivel__ultrassom-titulo">
+                    <Waves size={14} />
+                    <span className="hud-tag">NIVEL DE AGUA — ULTRASSOM</span>
+                </div>
+
+                {!temNivelUltrassom && (
+                    <p className="hud-tag">Sensor ultrassonico sem leitura agora — confira o modulo (GPIO 21/22).</p>
+                )}
+
+                {temNivelUltrassom && (
+                    <>
+                        <BarraEnergiaHud titulo="NIVEL" valor={nivelPercentual} unidade="%" cor={corUltrassom} />
+                        <div className="widget-alerta-nivel__ultrassom-litros">
+                            <span className="widget-alerta-nivel__ultrassom-litros-atual hud-mono" style={{ color: corUltrassom }}>
+                                {formatarLitros(sensorNivel.volume_litros_atual)} L
+                            </span>
+                            <span className="hud-tag">/ {formatarLitros(sensorNivel.volume_maximo_litros)} L</span>
+                            <span className="hud-tag widget-alerta-nivel__ultrassom-distancia">
+                                (distancia: {numeroOuTraco(sensorNivel.distancia_cm, 1)} cm)
+                            </span>
+                        </div>
+                    </>
+                )}
+            </div>
         </div>
     );
 }

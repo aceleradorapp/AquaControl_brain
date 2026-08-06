@@ -1386,6 +1386,11 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
     // "estado" (IDEAL/BAIXO/CRITICO, 38-espc) e so-informativo, nao vem do calculo do percentual
     // acima — usado pelo widget dedicado (WidgetAlertaNivel) pro badge de estado no cabecalho.
     const alertaNivelEstado = sensorAlertaNivelReal?.estado ?? null;
+    // Nivel de Agua via ultrassom (39-espc) — sensor DIFERENTE de "alerta_nivel" acima, coexiste
+    // com ele. "conectado" aqui reflete de verdade se o pulseIn() do ECHO recebeu resposta (nao
+    // e sempre-true como os sensores analogicos passivos) — sem filtro de conectado aqui de
+    // proposito, pra o widget conseguir mostrar "sem leitura" quando for o caso.
+    const sensorNivelUltrassomReal = sensoresReais.find((s) => s.id === 'nivel_agua') ?? null;
 
     // Deteccao de Vazamento (27-espc) — booleano simples, sem "ultima leitura conhecida": um
     // vazamento so importa AGORA, nao faz sentido "congelar" um alerta de um vazamento que ja
@@ -1448,7 +1453,7 @@ export default function Dashboard({ onDesparear, onVerModoVisitante }) {
             titulo: 'Alerta de Nivel',
             icone: <Gauge size={20} />,
             resumo: alertaNivelEstado ?? (typeof nivelAguaPercentual === 'number' ? `${Math.round(nivelAguaPercentual)}%` : null),
-            render: () => <WidgetAlertaNivel sensor={sensorAlertaNivelReal} />,
+            render: () => <WidgetAlertaNivel sensor={sensorAlertaNivelReal} sensorNivel={sensorNivelUltrassomReal} />,
         },
         historicoTermico: {
             titulo: 'Historico Termico',

@@ -7,8 +7,9 @@ import '../styles/esquematico.css';
 // Interativo dos reles (EsquematicoInterativo.jsx: ESP32 + fios ortogonais + blocos de
 // status), mas SEM interatividade de clique (sensores sao so leitura, nao tem o que
 // "acionar") e SEM a coluna intermediaria de modulo (o sensor liga direto no GPIO do ESP32,
-// nao existe um MCP23017/rele no meio). 9 blocos = os 9 sensores fisicos atuais (38-espc:
-// removido o bloco de Inclinacao/GPIO 21, sem sensor ativo la por enquanto — o DHT11 é
+// nao existe um MCP23017/rele no meio). 10 blocos = os 10 sensores fisicos atuais (39-espc:
+// adicionado o sensor ultrassonico de Nivel de Agua nos pinos que ficaram livres desde a
+// remocao da Inclinacao no 38-espc — o DHT11 é
 // UM sensor fisico só — 2 valores, temp+umidade — por isso vira um bloco só, não dois); o
 // resto do arquivo (calcularPinosGpio/ESP32_H/VIEWBOX_H) se adapta sozinho a quantos blocos
 // existirem, entao adicionar um sensor novo no futuro so precisa de uma linha aqui.
@@ -23,6 +24,9 @@ const BLOCOS_SENSORES = [
     { titulo: 'Fluxo de Agua 2 (YF-S201)', gpio: 35, ids: ['fluxo_agua_2'] },
     { titulo: 'pH da Agua', gpio: 34, ids: ['ph_agua'] },
     { titulo: 'Alerta de Nivel (Reservatorio)', gpio: 36, ids: ['alerta_nivel'] },
+    // 39-espc: ultrassom usa DOIS pinos (TRIG 21 + ECHO 22) — este diagrama so desenha UM fio
+    // por bloco, entao ancora no GPIO 21 (TRIG) e menciona os dois no titulo/tooltip.
+    { titulo: 'Nivel de Agua (Ultrassom, TRIG 21 / ECHO 22)', gpio: 21, ids: ['nivel_agua'] },
     { titulo: 'Deteccao de Vazamento', gpio: 39, ids: ['vazamento'] },
 ];
 

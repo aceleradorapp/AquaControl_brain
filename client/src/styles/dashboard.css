@@ -354,6 +354,32 @@
     font-size: 0.95rem;
     color: var(--cor-texto);
 }
+.widget-alerta-nivel__ultrassom {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espaco-sm);
+    padding-top: var(--espaco-sm);
+}
+.widget-alerta-nivel__ultrassom-titulo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--cor-secundaria);
+}
+.widget-alerta-nivel__ultrassom-litros {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.widget-alerta-nivel__ultrassom-litros-atual {
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-shadow: 0 0 8px currentColor;
+}
+.widget-alerta-nivel__ultrassom-distancia {
+    margin-left: auto;
+}
 
 /* --- Nivel de Agua (27-espc) --- */
 .medidor-nivel-agua {

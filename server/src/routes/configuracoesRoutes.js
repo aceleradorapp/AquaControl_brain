@@ -2,6 +2,7 @@ const express = require('express');
 const {
     obterConfiguracoesGerais,
     salvarConfiguracoesGerais,
+    calibrarOffsetNivelUltrassom,
     obterFaixasSeguras,
     salvarFaixasSeguras,
     obterCalibracaoFluxo,
@@ -16,6 +17,10 @@ const router = express.Router();
 // Configuracoes Globais do Sistema (19-espc) — ver configuracoesGeraisController.js.
 router.get('/', obterConfiguracoesGerais);
 router.put('/', salvarConfiguracoesGerais);
+
+// Calibracao do Nivel por Ultrassom (39-espc) — botao "Calibrar Nivel Maximo (Zerar)" em
+// Sensores & Telemetria: le a distancia AO VIVO do sensor e salva como offset.
+router.post('/calibrar-nivel-ultrassom', calibrarOffsetNivelUltrassom);
 
 router.get('/faixas-seguras', obterFaixasSeguras);
 router.put('/faixas-seguras', salvarFaixasSeguras);

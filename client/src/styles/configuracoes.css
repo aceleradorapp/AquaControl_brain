@@ -388,3 +388,13 @@
     border: 1px solid var(--cor-borda);
     cursor: pointer;
 }
+
+/* --- Calibracao do Nivel por Ultrassom (39-espc) --- */
+.config-nivel-ultrassom__acao {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--espaco-sm);
+    padding: var(--espaco-sm) 0;
+    flex-wrap: wrap;
+}

@@ -1,4 +1,4 @@
-import { AlertTriangle, Compass, Droplets, FlaskConical, Gauge, Thermometer, Waves } from 'lucide-react';
+import { AlertTriangle, Compass, Container, Droplets, FlaskConical, Gauge, Thermometer, Waves } from 'lucide-react';
 
 // Icone por "tipo" de sensor (16-espc, AquaControl_sensor; +27-espc: nivel/vazamento) —
 // reaproveitado pelo Diagrama de Sensores (ModalDiagnosticoCompleto.jsx) e pelo Esquematico
@@ -11,6 +11,7 @@ export const ICONES_SENSOR = {
     sensor_ph: FlaskConical,
     sensor_inclinacao: Compass, // sem sensor ativo hoje (38-espc) — mapeamento mantido caso volte no futuro
     sensor_alerta_nivel: Gauge,
+    sensor_nivel: Container, // 39-espc: nivel de agua via ultrassom (distinto do Gauge do alerta de contato)
     sensor_vazamento: AlertTriangle,
 };
 
@@ -24,6 +25,17 @@ export function formatarValorSensor(sensor) {
     if (sensor.unidade === 'bool') {
         if (sensor.id === 'vazamento') return sensor.valor ? 'Vazamento detectado' : 'Normal';
         return sensor.valor ? 'Inclinado' : 'Normal';
+    }
+    // 39-espc: "nivel_agua" (ultrassom) ganha um formato PROPRIO (% + litros) em qualquer tela
+    // que use este formatador generico (Visitante, Esquematico, Diagnostico Completo) — o
+    // usuario pediu explicitamente esse formato ("96% - 2.000 Litros / 2.080L"), nao so o
+    // percentual cru. Os campos "volume_*" so existem quando o Brain conseguiu calcular
+    // (sensoresTelemetriaService.js:aplicarCalculoNivelUltrassom); sem eles, cai no formato
+    // numerico padrao abaixo.
+    if (sensor.id === 'nivel_agua' && typeof sensor.volume_litros_atual === 'number' && typeof sensor.volume_maximo_litros === 'number') {
+        const litrosAtual = sensor.volume_litros_atual.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+        const litrosMax = sensor.volume_maximo_litros.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+        return `${sensor.valor.toFixed(0)}% - ${litrosAtual} L / ${litrosMax} L`;
     }
     if (typeof sensor.valor === 'number') return `${sensor.valor.toFixed(1)} ${sensor.unidade}`;
     return `${sensor.valor} ${sensor.unidade}`;

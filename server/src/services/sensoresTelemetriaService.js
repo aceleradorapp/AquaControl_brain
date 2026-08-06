@@ -53,6 +53,60 @@ function aplicarCalibracaoTempAgua(sensores) {
     });
 }
 
+// 39-espc: sensor ultrassonico manda a DISTANCIA CRUA em cm ("nivel_agua", unidade "cm") — o
+// ESP nao sabe as dimensoes do aquario, entao a conversao pra volume/porcentagem acontece aqui,
+// usando as 4 medidas configuraveis em Configuracoes -> Sensores & Telemetria -> Calibracao do
+// Nivel por Ultrassom. Formula pedida pelo usuario:
+//   Volume Maximo (L) = (largura_cm * comprimento_cm * altura_max_cm) / 1000
+//   Litros por cm = (largura_cm * comprimento_cm) / 1000
+//   Variacao_cm = distancia_lida - distancia_offset  (offset = distancia com a agua no nivel
+//     maximo/desejado, capturada pelo botao "Calibrar Nivel Maximo (Zerar)")
+//   Altura da agua agora = altura_max_cm - Variacao_cm
+//   Volume atual (L) = Altura da agua agora * Litros por cm
+//   Porcentagem = Volume atual / Volume Maximo * 100
+function obterConfigAquario() {
+    const linhas = db
+        .prepare(
+            "SELECT chave, valor FROM configuracoes_gerais WHERE chave IN ('aquario_largura_cm', 'aquario_comprimento_cm', 'aquario_altura_max_cm', 'aquario_distancia_offset_cm')"
+        )
+        .all();
+    const mapa = Object.fromEntries(linhas.map((l) => [l.chave, Number(l.valor)]));
+    return {
+        larguraCm: Number.isFinite(mapa.aquario_largura_cm) ? mapa.aquario_largura_cm : 200,
+        comprimentoCm: Number.isFinite(mapa.aquario_comprimento_cm) ? mapa.aquario_comprimento_cm : 80,
+        alturaMaxCm: Number.isFinite(mapa.aquario_altura_max_cm) ? mapa.aquario_altura_max_cm : 130,
+        offsetCm: Number.isFinite(mapa.aquario_distancia_offset_cm) ? mapa.aquario_distancia_offset_cm : 0,
+    };
+}
+
+function aplicarCalculoNivelUltrassom(sensores) {
+    return sensores.map((sensor) => {
+        if (sensor.id !== 'nivel_agua' || !sensor.conectado || typeof sensor.valor !== 'number') return sensor;
+
+        const distanciaCm = sensor.valor;
+        const { larguraCm, comprimentoCm, alturaMaxCm, offsetCm } = obterConfigAquario();
+
+        const volumeMaximoLitros = (larguraCm * comprimentoCm * alturaMaxCm) / 1000;
+        const litrosPorCm = (larguraCm * comprimentoCm) / 1000;
+        const variacaoCm = distanciaCm - offsetCm;
+        const alturaAguaCm = alturaMaxCm - variacaoCm;
+        // Clampado 0-alturaMax: uma leitura ruidosa/fora da faixa nao pode virar volume
+        // negativo nem porcentagem acima de 100 — mesma cautela ja usada no Alerta de Nivel.
+        const alturaAguaClampadaCm = Math.min(Math.max(alturaAguaCm, 0), alturaMaxCm);
+        const volumeAtualLitros = alturaAguaClampadaCm * litrosPorCm;
+        const percentual = volumeMaximoLitros > 0 ? (volumeAtualLitros / volumeMaximoLitros) * 100 : 0;
+
+        return {
+            ...sensor,
+            valor: Math.round(percentual * 10) / 10,
+            unidade: '%',
+            distancia_cm: Math.round(distanciaCm * 10) / 10,
+            volume_litros_atual: Math.round(volumeAtualLitros * 10) / 10,
+            volume_maximo_litros: Math.round(volumeMaximoLitros * 10) / 10,
+        };
+    });
+}
+
 function aplicarNomesPersonalizados(sensores) {
     const linhas = db.prepare('SELECT sensor_id, nome_personalizado, nome_display FROM sensores_personalizados').all();
     const personalizacoes = new Map(linhas.map((l) => [l.sensor_id, l]));
@@ -139,7 +193,10 @@ async function cicloSensores() {
             return;
         }
 
-        ultimaLeitura = { ...dados, sensores: aplicarNomesPersonalizados(aplicarCalibracaoTempAgua(dados.sensores)) };
+        ultimaLeitura = {
+            ...dados,
+            sensores: aplicarNomesPersonalizados(aplicarCalculoNivelUltrassom(aplicarCalibracaoTempAgua(dados.sensores))),
+        };
         ultimosSensoresConhecidos = ultimaLeitura.sensores;
         registrarMudancas(modulo.id, ultimaLeitura.sensores);
     } catch {
