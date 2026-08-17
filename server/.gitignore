@@ -1,4 +1,11 @@
 node_modules/
+.env
+*.sqlite
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Gerados em runtime pelo self-update (server/scripts/atualizar-sistema.sh) — nunca versionar.
+atualizacao.log
+atualizacao.status
+atualizacao.lock

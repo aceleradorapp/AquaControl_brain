@@ -13,6 +13,7 @@ const { iniciarManutencao } = require('./services/manutencaoService');
 const { iniciarDiagnosticoAgendado } = require('./services/diagnosticoService');
 const { iniciarAgendamentoConsumoEnergia } = require('./services/energiaService');
 const { iniciarMotorTempestade } = require('./services/tempestadeService');
+const { registrarResultadoAtualizacaoPendente } = require('./services/sistemaService');
 
 const app = express();
 
@@ -94,3 +95,8 @@ iniciarAgendamentoConsumoEnergia();
 // 35-espc: Motor do Tema Tempestade — dispara raios aleatorios enquanto um tema
 // tipo_efeito='tempestade' estiver ativo (manual/timer/agendamento) — ver tempestadeService.js.
 iniciarMotorTempestade();
+
+// Self-Update do sistema — se este boot foi causado pelo "pm2 restart" que o proprio script de
+// atualizacao chama no final, registra o resultado (sucesso/erro) no System Log. Ver
+// sistemaService.js.
+registrarResultadoAtualizacaoPendente();

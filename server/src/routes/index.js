@@ -11,6 +11,7 @@ const { listarDispositivosAtuais } = require('../controllers/dispositivosControl
 const { obterHistoricoReles } = require('../controllers/historicoRelesController');
 const relatoriosRoutes = require('./relatoriosRoutes');
 const configuracoesRoutes = require('./configuracoesRoutes');
+const sistemaRoutes = require('./sistemaRoutes');
 const { obterLogs } = require('../controllers/logsController');
 const { obterDiagnosticoPorId, executarDiagnosticoManual } = require('../controllers/diagnosticosController');
 const {
@@ -65,6 +66,10 @@ router.use('/relatorios', relatoriosRoutes);
 // Configuracoes Globais do Sistema (19-espc) — ver configuracoesGeraisController.js/
 // equipamentosAutomacaoController.js/automacaoEquipamentosService.js.
 router.use('/configuracoes', configuracoesRoutes);
+
+// Self-Update do sistema (git pull + npm install + build + pm2 restart, 1 clique) — ver
+// sistemaController.js/sistemaService.js/server/scripts/atualizar-sistema.sh.
+router.use('/sistema', sistemaRoutes);
 
 // System Log persistido + Diagnostico Completo agendado/manual (31-espc) — ver
 // logService.js/diagnosticoService.js. "/diagnostics/executar" precisa vir ANTES de

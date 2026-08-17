@@ -8,6 +8,7 @@ import {
     Pencil,
     Plus,
     Power,
+    RefreshCw,
     RotateCcw,
     Search,
     Thermometer,
@@ -20,6 +21,15 @@ import ModalHud from './ModalHud';
 import ModalEquipamentoAutomacao from './ModalEquipamentoAutomacao';
 import PreviewTelaProtecao from './PreviewTelaProtecao';
 import { CampoNumero, CampoSelect, CampoToggle, CartaoSecao, LinhaConfiguracao } from './CamposConfiguracao';
+import { CHAVE_TOKEN_MASTER } from '../App';
+
+// Self-Update do sistema (git pull + npm install + build + pm2 restart) exige o token JWT no
+// header Authorization, mesma guarda de /api/fauna (ver ModalGestaoFauna.jsx) — a rota
+// /api/sistema/atualizar e a PRIMEIRA fora de Fauna a exigir isso de verdade.
+function cabecalhoAuth() {
+    const token = localStorage.getItem(CHAVE_TOKEN_MASTER);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 const CATEGORIAS = [
     { chave: 'sistema', rotulo: 'Sistema & Plataforma', icone: Monitor },
@@ -131,6 +141,12 @@ export default function ModalConfiguracoes({
     // resto do rascunho "config" desta tela — muda com seu proprio botao "Alterar", nao com o
     // "Salvar Alteracoes" generico (nao faz sentido a Master Key mudar sem uma acao explicita
     // dedicada, ao contrario de um numero de configuracao qualquer).
+    const [commitsPendentes, setCommitsPendentes] = useState(null);
+    const [verificandoVersao, setVerificandoVersao] = useState(false);
+    const [atualizando, setAtualizando] = useState(false);
+    const [mensagemAtualizacao, setMensagemAtualizacao] = useState('');
+    const [erroAtualizacao, setErroAtualizacao] = useState('');
+
     const [authConfig, setAuthConfig] = useState({ bloquearCadastro: false });
     const [novaMasterKey, setNovaMasterKey] = useState('');
     const [salvandoMasterKey, setSalvandoMasterKey] = useState(false);
@@ -633,6 +649,84 @@ export default function ModalConfiguracoes({
             window.location.reload();
         } catch (erro) {
             registrarLog?.(`Falha ao restaurar backup: ${erro.message}`, 'erro');
+        }
+    }
+
+    async function verificarAtualizacoes() {
+        setVerificandoVersao(true);
+        setErroAtualizacao('');
+        try {
+            const resposta = await fetch('/api/sistema/versao-status', { headers: cabecalhoAuth() });
+            const dados = await resposta.json();
+            if (!resposta.ok) throw new Error(dados.erro ?? 'Falha ao verificar atualizacoes.');
+            setCommitsPendentes(dados.commitsPendentes);
+        } catch (erro) {
+            setErroAtualizacao(erro.message);
+        } finally {
+            setVerificandoVersao(false);
+        }
+    }
+
+    // Faz polling do status ate dar "sucesso"/"erro" — o servidor reinicia (pm2 restart) no
+    // meio do caminho, entao alguns ciclos vao falhar com erro de rede (conexao recusada); isso
+    // e esperado, so continuamos tentando ate o timeout de seguranca.
+    function acompanharAtualizacao() {
+        const inicioEm = Date.now();
+        const TIMEOUT_MS = 6 * 60 * 1000;
+
+        const intervalo = setInterval(async () => {
+            if (Date.now() - inicioEm > TIMEOUT_MS) {
+                clearInterval(intervalo);
+                setErroAtualizacao('Tempo limite esperando a atualizacao terminar — verifique o servidor manualmente.');
+                setAtualizando(false);
+                return;
+            }
+
+            try {
+                const resposta = await fetch('/api/sistema/atualizar/status', { headers: cabecalhoAuth() });
+                if (!resposta.ok) return; // servidor reiniciando (pm2 restart) — tenta de novo no proximo ciclo
+                const dados = await resposta.json();
+
+                if (dados.status === 'sucesso') {
+                    clearInterval(intervalo);
+                    setMensagemAtualizacao(`Atualizacao concluida (commit ${dados.commit}). Recarregando a pagina...`);
+                    setTimeout(() => window.location.reload(), 4000);
+                } else if (dados.status === 'erro') {
+                    clearInterval(intervalo);
+                    setErroAtualizacao(`Falha na atualizacao: ${dados.mensagem}`);
+                    setAtualizando(false);
+                }
+                // 'em_andamento' — continua fazendo polling.
+            } catch {
+                // conexao recusada durante o restart do pm2 — normal, so tenta de novo.
+            }
+        }, 3000);
+    }
+
+    async function dispararAtualizacaoSistema() {
+        const confirmado = window.confirm(
+            'Isso vai baixar a versao mais recente do repositorio, reinstalar dependencias, recompilar o painel e reiniciar o servidor (pm2). O sistema fica indisponivel por cerca de 1 minuto. Continuar?'
+        );
+        if (!confirmado) return;
+
+        setErroAtualizacao('');
+        setAtualizando(true);
+        setMensagemAtualizacao('Atualizando sistema, baixando arquivos e recompilando... isso pode levar cerca de 1 minuto.');
+
+        try {
+            const resposta = await fetch('/api/sistema/atualizar', { method: 'POST', headers: cabecalhoAuth() });
+            const dados = await resposta.json();
+            if (resposta.status === 409) {
+                setErroAtualizacao(dados.erro ?? 'Ja existe uma atualizacao em andamento.');
+                setAtualizando(false);
+                return;
+            }
+            if (!resposta.ok) throw new Error(dados.erro ?? 'Falha ao iniciar a atualizacao.');
+            registrarLog?.('Atualizacao do sistema iniciada.', 'alerta');
+            acompanharAtualizacao();
+        } catch (erro) {
+            setErroAtualizacao(erro.message);
+            setAtualizando(false);
         }
     }
 
@@ -1390,6 +1484,56 @@ export default function ModalConfiguracoes({
                                                 step={0.01}
                                             />
                                         </LinhaConfiguracao>
+                                    </CartaoSecao>
+                                )}
+
+                                {corresponde('Atualizacao', 'Update', 'Versao', 'Git Pull', 'Deploy') && (
+                                    <CartaoSecao titulo="Atualizacao do Sistema">
+                                        <p className="hud-tag config-nota">
+                                            Baixa a versao mais recente do repositorio, reinstala dependencias, recompila o painel e reinicia o
+                                            servidor (pm2). O sistema fica indisponivel por cerca de 1 minuto durante o processo.
+                                        </p>
+
+                                        <div className="config-linha" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+                                            <button
+                                                type="button"
+                                                className="botao-primario"
+                                                onClick={verificarAtualizacoes}
+                                                disabled={verificandoVersao || atualizando}
+                                            >
+                                                <RefreshCw size={14} />
+                                                {verificandoVersao ? 'Verificando...' : 'Verificar Atualizacoes'}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className="botao-primario"
+                                                onClick={dispararAtualizacaoSistema}
+                                                disabled={atualizando}
+                                            >
+                                                <Download size={14} />
+                                                {atualizando ? 'Atualizando...' : 'Atualizar Sistema'}
+                                            </button>
+
+                                            {commitsPendentes !== null && !atualizando && (
+                                                <span className="hud-tag">
+                                                    {commitsPendentes === 0
+                                                        ? 'Sistema ja esta na versao mais recente.'
+                                                        : `${commitsPendentes} commit(s) novo(s) disponivel(is).`}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {atualizando && (
+                                            <p className="hud-tag config-nota" style={{ marginTop: '0.5rem' }}>
+                                                {mensagemAtualizacao}
+                                            </p>
+                                        )}
+                                        {erroAtualizacao && (
+                                            <p className="hud-tag config-nota" style={{ marginTop: '0.5rem', color: 'var(--cor-erro)' }}>
+                                                {erroAtualizacao}
+                                            </p>
+                                        )}
                                     </CartaoSecao>
                                 )}
                             </>
