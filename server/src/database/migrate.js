@@ -217,6 +217,19 @@ function runMigrations(db) {
         );
     `);
 
+    // Sem indice, tanto a aba "Automacao" da Central de Relatorios quanto
+    // calcularHorasLigadoNoDia (energiaService.js — chamada a cada request de GET
+    // /api/relatorios/energia pra fechar o dia de hoje, uma vez por porta com potencia
+    // configurada) faziam SCAN completo da tabela — mesma classe de bug que
+    // idx_historico_sensores_* acima, e que na producao (mais historico de rele acumulado do
+    // que no ambiente de dev) chegou a travar o event loop por dezenas de segundos, derrubando
+    // outras requisicoes em fila atras dela. A ordem das colunas (modulo_id, posicao_indice,
+    // criado_em) cobre as DUAS queries de calcularHorasLigadoNoDia (igualdade em ambas +
+    // intervalo/ordem em criado_em) e tambem serve o SCAN+ORDER BY do relatorio de Automacao
+    // (que filtra so modulo_id e ordena por posicao_indice, criado_em — exatamente a ordem
+    // natural deste indice).
+    db.exec('CREATE INDEX IF NOT EXISTS idx_historico_reles_modulo_posicao_criado ON historico_reles (modulo_id, posicao_indice, criado_em);');
+
     // 14-espc: "tema_nome" identifica QUAL tema disparou a mudança quando origem = 'tema'
     // (NULL nos outros casos) — sem isso, um relatório não conseguiria distinguir "esse
     // relé mudou porque alguém aplicou o tema Manutenção" de um clique avulso.
