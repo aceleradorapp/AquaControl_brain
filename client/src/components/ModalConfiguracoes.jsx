@@ -1005,6 +1005,56 @@ export default function ModalConfiguracoes({
                                         )}
                                     </CartaoSecao>
                                 )}
+
+                                {corresponde('Atualizacao', 'Update', 'Versao', 'Git Pull', 'Deploy') && (
+                                    <CartaoSecao titulo="Atualizacao do Sistema">
+                                        <p className="hud-tag config-nota">
+                                            Baixa a versao mais recente do repositorio, reinstala dependencias, recompila o painel e reinicia o
+                                            servidor (pm2). O sistema fica indisponivel por cerca de 1 minuto durante o processo.
+                                        </p>
+
+                                        <div className="config-linha" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+                                            <button
+                                                type="button"
+                                                className="botao-primario"
+                                                onClick={verificarAtualizacoes}
+                                                disabled={verificandoVersao || atualizando}
+                                            >
+                                                <RefreshCw size={14} />
+                                                {verificandoVersao ? 'Verificando...' : 'Verificar Atualizacoes'}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className="botao-primario"
+                                                onClick={dispararAtualizacaoSistema}
+                                                disabled={atualizando}
+                                            >
+                                                <Download size={14} />
+                                                {atualizando ? 'Atualizando...' : 'Atualizar Sistema'}
+                                            </button>
+
+                                            {commitsPendentes !== null && !atualizando && (
+                                                <span className="hud-tag">
+                                                    {commitsPendentes === 0
+                                                        ? 'Sistema ja esta na versao mais recente.'
+                                                        : `${commitsPendentes} commit(s) novo(s) disponivel(is).`}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {atualizando && (
+                                            <p className="hud-tag config-nota" style={{ marginTop: '0.5rem' }}>
+                                                {mensagemAtualizacao}
+                                            </p>
+                                        )}
+                                        {erroAtualizacao && (
+                                            <p className="hud-tag config-nota" style={{ marginTop: '0.5rem', color: 'var(--cor-erro)' }}>
+                                                {erroAtualizacao}
+                                            </p>
+                                        )}
+                                    </CartaoSecao>
+                                )}
                             </>
                         )}
 
@@ -1484,56 +1534,6 @@ export default function ModalConfiguracoes({
                                                 step={0.01}
                                             />
                                         </LinhaConfiguracao>
-                                    </CartaoSecao>
-                                )}
-
-                                {corresponde('Atualizacao', 'Update', 'Versao', 'Git Pull', 'Deploy') && (
-                                    <CartaoSecao titulo="Atualizacao do Sistema">
-                                        <p className="hud-tag config-nota">
-                                            Baixa a versao mais recente do repositorio, reinstala dependencias, recompila o painel e reinicia o
-                                            servidor (pm2). O sistema fica indisponivel por cerca de 1 minuto durante o processo.
-                                        </p>
-
-                                        <div className="config-linha" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
-                                            <button
-                                                type="button"
-                                                className="botao-primario"
-                                                onClick={verificarAtualizacoes}
-                                                disabled={verificandoVersao || atualizando}
-                                            >
-                                                <RefreshCw size={14} />
-                                                {verificandoVersao ? 'Verificando...' : 'Verificar Atualizacoes'}
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                className="botao-primario"
-                                                onClick={dispararAtualizacaoSistema}
-                                                disabled={atualizando}
-                                            >
-                                                <Download size={14} />
-                                                {atualizando ? 'Atualizando...' : 'Atualizar Sistema'}
-                                            </button>
-
-                                            {commitsPendentes !== null && !atualizando && (
-                                                <span className="hud-tag">
-                                                    {commitsPendentes === 0
-                                                        ? 'Sistema ja esta na versao mais recente.'
-                                                        : `${commitsPendentes} commit(s) novo(s) disponivel(is).`}
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {atualizando && (
-                                            <p className="hud-tag config-nota" style={{ marginTop: '0.5rem' }}>
-                                                {mensagemAtualizacao}
-                                            </p>
-                                        )}
-                                        {erroAtualizacao && (
-                                            <p className="hud-tag config-nota" style={{ marginTop: '0.5rem', color: 'var(--cor-erro)' }}>
-                                                {erroAtualizacao}
-                                            </p>
-                                        )}
                                     </CartaoSecao>
                                 )}
                             </>
