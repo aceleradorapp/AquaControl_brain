@@ -531,6 +531,18 @@ function runMigrations(db) {
         );
     `);
 
+    // Tabela mais escrita do sistema (1 linha por sensor a cada ciclo de poll, ver
+    // sensoresTelemetriaService.js — na pratica, centenas de milhares de linhas ja nas
+    // primeiras semanas). Sem indice, toda consulta da Central de Relatorios
+    // (WHERE modulo_id = ? AND criado_em BETWEEN ? AND ?, ORDER BY criado_em) virava um SCAN
+    // completo da tabela — como node:sqlite (DatabaseSync) e sincrono, isso bloqueava o event
+    // loop inteiro (relay control, push pro Display, ping de modulos, tudo) pelo tempo do
+    // scan, causando timeout/connection reset no navegador. Dois indices: um pro
+    // filtro-por-periodo (telemetria/consumo-agua/alertas), outro pro
+    // filtro-por-sensor-especifico (sensor-historico, usado no detalhe de sensor).
+    db.exec('CREATE INDEX IF NOT EXISTS idx_historico_sensores_modulo_criado ON historico_sensores (modulo_id, criado_em);');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_historico_sensores_modulo_sensor_criado ON historico_sensores (modulo_id, sensor_id, criado_em);');
+
     // 17-espc (Central de Relatorios, consumo de agua): totalizador de volume do fluxometro
     // (YF-S201), lido direto do proprio ESP a cada snapshot (nao calculado aqui) — NULL pra
     // qualquer sensor que nao seja "fluxo_agua". Precisa ser uma coluna a parte (nao dá pra
