@@ -176,10 +176,14 @@ function salvarCalibracaoFluxo(req, res) {
     obterCalibracaoFluxo(req, res);
 }
 
-// Backup/Restauracao (19-espc) — dump/restauracao das tabelas de CONFIGURACAO (modulos,
-// mapeamentos, temas, agendamentos, automacao etc.), NAO um backup completo do banco —
-// historico_sensores/historico_reles ficam de fora de proposito (podem ser grandes, e o
-// objetivo aqui e "restaurar a configuracao", nao "clonar o historico").
+// Backup/Restauracao (19-espc, admin_conta/fauna adicionados depois pra cobrir o caso de uso
+// "levar tudo de uma maquina pra outra" sem precisar versionar o .sqlite no git — ver
+// DEPLOY_SERVIDOR.md) — dump/restauracao das tabelas de CONFIGURACAO + CONTA, NAO um backup
+// completo do banco: historico_sensores/historico_reles/system_logs/consumo_energia_diario
+// ficam de fora de proposito (podem ser grandes, e o objetivo aqui e "restaurar a
+// configuracao e o acesso", nao "clonar o historico"). ATENCAO: "admin_conta" inclui o hash
+// scrypt (sal:hash) da senha — o JSON exportado deve ser tratado como sensivel, nao
+// compartilhado, mesmo a senha em si nao sendo reversivel a partir do hash.
 const TABELAS_BACKUP = [
     'modulos',
     'portas_mapeamento',
@@ -195,6 +199,8 @@ const TABELAS_BACKUP = [
     'calibracao_fluxo',
     'equipamentos_automacao',
     'qrcodes',
+    'admin_conta',
+    'fauna',
 ];
 
 function gerarBackup(req, res) {

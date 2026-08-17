@@ -632,7 +632,7 @@ export default function ModalConfiguracoes({
         if (!arquivo) return;
 
         const confirmado = window.confirm(
-            'Restaurar um backup SUBSTITUI toda a configuracao atual (modulos, mapeamentos, temas, agendamentos, automacao, etc.) pelo conteudo do arquivo. Esta acao nao pode ser desfeita. Continuar?'
+            'Restaurar um backup SUBSTITUI toda a configuracao atual (modulos, mapeamentos, temas, agendamentos, automacao, contas de admin, Gestao de Fauna, etc.) pelo conteudo do arquivo. Contas de admin atuais serao trocadas pelas do backup. Esta acao nao pode ser desfeita. Continuar?'
         );
         if (!confirmado) return;
 
@@ -1558,7 +1558,8 @@ export default function ModalConfiguracoes({
                                     <CartaoSecao titulo="Backup & Restauracao">
                                         <p className="hud-tag config-nota">
                                             Exporta/importa a CONFIGURACAO (modulos, mapeamentos, temas, agendamentos, automacao, faixas
-                                            seguras) — nao o historico de telemetria/reles.
+                                            seguras, contas de admin, Gestao de Fauna) — nao o historico de telemetria/reles/logs. O
+                                            arquivo exportado inclui o hash da senha de login — trate como sensivel, nao compartilhe.
                                         </p>
                                         <div className="config-backup__acoes">
                                             <button className="botao-primario" type="button" onClick={exportarBackup}>
