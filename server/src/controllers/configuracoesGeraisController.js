@@ -251,7 +251,10 @@ function restaurarBackup(req, res) {
     // System Log. Restauracao PARCIAL (Sincronizar com Servidor, so alguns grupos por vez) e
     // restauracao COMPLETA (Exportar/Importar arquivo) passam pelo mesmo endpoint — a lista de
     // tabelas afetadas no log distingue as duas.
-    const origem = req.ip || req.socket?.remoteAddress || 'desconhecida';
+    // Node reporta IPv4 puro como "::ffff:x.x.x.x" (mapeado em IPv6) quando o servidor escuta
+    // em todas as interfaces — sem isso o log ficava ilegivel pra confirmar rapidamente "foi
+    // minha maquina mesmo".
+    const origem = (req.ip || req.socket?.remoteAddress || 'desconhecida').replace(/^::ffff:/, '');
     registrarLog(
         `Configuracao restaurada a partir de ${origem}: ${tabelasAfetadas.join(', ') || 'nenhuma tabela'}.`,
         'alerta',
