@@ -1784,7 +1784,7 @@ export default function ModalConfiguracoes({
                         <div className="config-barra-salvar">
                             <span className="hud-tag">Alteracoes nao salvas</span>
                             <div className="config-barra-salvar__acoes">
-                                <button className="botao-icone" type="button" onClick={descartar}>
+                                <button className="botao-primario botao-primario--neutro" type="button" onClick={descartar}>
                                     Descartar
                                 </button>
                                 <button className="botao-primario" type="button" onClick={salvar} disabled={salvando}>
@@ -1831,8 +1831,8 @@ export default function ModalConfiguracoes({
                                 </div>
                             ))}
                         </div>
-                        <div className="modal-hud__acoes">
-                            <button className="botao-icone" type="button" onClick={() => setConfirmacaoSync(null)} disabled={enviandoSync}>
+                        <div className="modal-hud__acoes" style={{ gap: 'var(--espaco-sm)' }}>
+                            <button className="botao-primario botao-primario--neutro" type="button" onClick={() => setConfirmacaoSync(null)} disabled={enviandoSync}>
                                 Cancelar
                             </button>
                             <button className="botao-primario" type="button" onClick={confirmarEnvioSincronizacao} disabled={enviandoSync}>
