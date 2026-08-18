@@ -50,6 +50,63 @@ const GRUPOS_SINCRONIZACAO = [
     { chave: 'admin', rotulo: 'Conta de Admin (login)', tabelas: ['admin_conta'], perigoso: true },
 ];
 
+// Comparacao local x servidor (pedido explicito: saber ANTES de clicar "Enviar" se tem algo
+// diferente, e o que). Casa linhas pelo "id" — universal em todas as tabelas de
+// TABELAS_BACKUP — e faz um diff raso (novo/removido pela presenca do id, modificado por
+// JSON.stringify diferente). Nunca mostra o conteudo da linha (nem pro admin_conta, cujo
+// senha_hash nao deveria aparecer na tela) — so um rotulo legivel por linha.
+function rotuloLinha(linha) {
+    const chaveNome = ['nome', 'nome_comum', 'nomePersonalizado', 'nome_personalizado', 'titulo', 'usuario', 'chave'].find(
+        (k) => linha?.[k]
+    );
+    return chaveNome ? String(linha[chaveNome]) : `#${linha?.id ?? '?'}`;
+}
+
+// "SELECT *" devolve as colunas na ordem do schema, que pode divergir entre dois bancos com
+// o MESMO historico de migracoes mas criados em momentos diferentes (ALTER TABLE aditivo vs
+// tabela nova ja com a coluna no CREATE TABLE) — JSON.stringify e sensivel a ordem das
+// chaves, entao duas linhas com o mesmo CONTEUDO podiam aparecer como "modificadas" so por
+// causa disso. Ordena as chaves antes de serializar pra comparar por valor de verdade.
+function stringificarOrdenado(valor) {
+    if (valor === null || typeof valor !== 'object') return JSON.stringify(valor);
+    if (Array.isArray(valor)) return `[${valor.map(stringificarOrdenado).join(',')}]`;
+    const chaves = Object.keys(valor).sort();
+    return `{${chaves.map((k) => `${JSON.stringify(k)}:${stringificarOrdenado(valor[k])}`).join(',')}}`;
+}
+
+function compararLinhas(local, remoto) {
+    const paraMapa = (arr) => new Map((arr ?? []).map((linha) => [String(linha.id), linha]));
+    const mapaLocal = paraMapa(local);
+    const mapaRemoto = paraMapa(remoto);
+    const novos = [];
+    const modificados = [];
+    const removidos = [];
+
+    for (const [id, linha] of mapaLocal) {
+        const linhaRemota = mapaRemoto.get(id);
+        if (!linhaRemota) novos.push(linha);
+        else if (stringificarOrdenado(linha) !== stringificarOrdenado(linhaRemota)) modificados.push(linha);
+    }
+    for (const [id, linha] of mapaRemoto) {
+        if (!mapaLocal.has(id)) removidos.push(linha);
+    }
+
+    return { novos, modificados, removidos };
+}
+
+function compararGrupo(grupo, backupLocal, backupRemoto) {
+    let novos = [];
+    let modificados = [];
+    let removidos = [];
+    for (const tabela of grupo.tabelas) {
+        const resultado = compararLinhas(backupLocal.tabelas?.[tabela], backupRemoto.tabelas?.[tabela]);
+        novos = novos.concat(resultado.novos.map(rotuloLinha));
+        modificados = modificados.concat(resultado.modificados.map(rotuloLinha));
+        removidos = removidos.concat(resultado.removidos.map(rotuloLinha));
+    }
+    return { novos, modificados, removidos, diferente: novos.length + modificados.length + removidos.length > 0 };
+}
+
 // Self-Update do sistema (git pull + npm install + build + pm2 restart) exige o token JWT no
 // header Authorization, mesma guarda de /api/fauna (ver ModalGestaoFauna.jsx) — a rota
 // /api/sistema/atualizar e a PRIMEIRA fora de Fauna a exigir isso de verdade.
@@ -181,6 +238,9 @@ export default function ModalConfiguracoes({
     const [statusConexaoSync, setStatusConexaoSync] = useState(null);
     const [enviandoSync, setEnviandoSync] = useState(false);
     const [confirmacaoSync, setConfirmacaoSync] = useState(null);
+    const [diferencasPorGrupo, setDiferencasPorGrupo] = useState(null);
+    const [comparandoSync, setComparandoSync] = useState(false);
+    const [detalheAbertoGrupo, setDetalheAbertoGrupo] = useState(null);
 
     const [authConfig, setAuthConfig] = useState({ bloquearCadastro: false });
     const [novaMasterKey, setNovaMasterKey] = useState('');
@@ -779,6 +839,7 @@ export default function ModalConfiguracoes({
     async function testarConexaoSincronizacao() {
         setTestandoConexaoSync(true);
         setStatusConexaoSync(null);
+        setDiferencasPorGrupo(null);
         try {
             const resposta = await fetch(urlSincronizacao('/api/auth/status'), { signal: AbortSignal.timeout(5000) });
             if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
@@ -787,10 +848,33 @@ export default function ModalConfiguracoes({
                 ok: true,
                 mensagem: dados.existeAdmin ? 'Servidor encontrado — tem conta de admin configurada.' : 'Servidor encontrado — sem conta de admin ainda.',
             });
+            compararComServidor();
         } catch (erro) {
             setStatusConexaoSync({ ok: false, mensagem: `Nao foi possivel conectar: ${erro.message}` });
         } finally {
             setTestandoConexaoSync(false);
+        }
+    }
+
+    // Busca os dois backups (local + do servidor de destino, ja confirmado alcancavel pelo
+    // teste de conexao) e monta o diff por grupo — chamado sozinho apos "Testar Conexao" dar
+    // certo, e tambem exposto como reload manual (icone ao lado do resumo).
+    async function compararComServidor() {
+        setComparandoSync(true);
+        try {
+            const [backupLocal, backupRemoto] = await Promise.all([
+                fetch('/api/configuracoes/backup').then((r) => r.json()),
+                fetch(urlSincronizacao('/api/configuracoes/backup'), { signal: AbortSignal.timeout(8000) }).then((r) => r.json()),
+            ]);
+            const comparacao = {};
+            for (const grupo of GRUPOS_SINCRONIZACAO) {
+                comparacao[grupo.chave] = compararGrupo(grupo, backupLocal, backupRemoto);
+            }
+            setDiferencasPorGrupo(comparacao);
+        } catch (erro) {
+            registrarLog?.(`Falha ao comparar com o servidor: ${erro.message}`, 'erro');
+        } finally {
+            setComparandoSync(false);
         }
     }
 
@@ -809,7 +893,7 @@ export default function ModalConfiguracoes({
                     tabelasParaEnviar[tabela] = linhas;
                     total += linhas.length;
                 }
-                return { rotulo: grupo.rotulo, total, perigoso: grupo.perigoso };
+                return { rotulo: grupo.rotulo, total, perigoso: grupo.perigoso, diff: diferencasPorGrupo?.[grupo.chave] };
             });
 
             setConfirmacaoSync({ grupos, tabelas: tabelasParaEnviar, resumo });
@@ -1739,41 +1823,114 @@ export default function ModalConfiguracoes({
                                             Envia todos os blocos abaixo de uma vez — util na primeira sincronizacao com um servidor novo.
                                             Mostra uma tela de confirmacao antes de enviar de verdade.
                                         </p>
-                                        <button
-                                            className="botao-primario"
-                                            type="button"
-                                            onClick={() => prepararEnvioSincronizacao('tudo')}
-                                            disabled={!ipSincronizacao.trim() || enviandoSync}
-                                        >
-                                            <Send size={14} />
-                                            Enviar Tudo
-                                        </button>
+                                        <div className="config-linha" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+                                            <button
+                                                className="botao-primario"
+                                                type="button"
+                                                onClick={() => prepararEnvioSincronizacao('tudo')}
+                                                disabled={!ipSincronizacao.trim() || enviandoSync}
+                                            >
+                                                <Send size={14} />
+                                                Enviar Tudo
+                                            </button>
+                                            {comparandoSync && <span className="hud-tag">Comparando com o servidor...</span>}
+                                            {!comparandoSync && diferencasPorGrupo && (
+                                                (() => {
+                                                    const totalDiferente = Object.values(diferencasPorGrupo).filter((d) => d.diferente).length;
+                                                    return totalDiferente === 0 ? (
+                                                        <span className="hud-tag" style={{ color: 'var(--cor-sucesso)' }}>
+                                                            Tudo igual ao servidor
+                                                        </span>
+                                                    ) : (
+                                                        <span className="hud-tag" style={{ color: 'var(--cor-alerta)' }}>
+                                                            {totalDiferente} categoria(s) com diferenca — veja abaixo
+                                                        </span>
+                                                    );
+                                                })()
+                                            )}
+                                        </div>
                                     </CartaoSecao>
                                 )}
 
                                 {corresponde('Fauna', 'Modulos', 'Temas', 'Agendamentos', 'Sensores', 'QR', 'Admin', 'Display', 'Calibracoes') && (
-                                    <CartaoSecao titulo="Enviar por Categoria">
-                                        {GRUPOS_SINCRONIZACAO.map((grupo) => (
-                                            <div key={grupo.chave} className="config-linha" style={{ justifyContent: 'space-between', gap: '0.75rem' }}>
-                                                <span className="config-linha__titulo">
-                                                    {grupo.rotulo}
-                                                    {grupo.perigoso && (
-                                                        <span className="hud-tag" style={{ color: 'var(--cor-erro)', marginLeft: '0.5rem' }}>
-                                                            substitui o login
+                                    <CartaoSecao
+                                        titulo="Enviar por Categoria"
+                                        acao={
+                                            <button
+                                                className="botao-icone"
+                                                type="button"
+                                                onClick={compararComServidor}
+                                                disabled={!ipSincronizacao.trim() || comparandoSync}
+                                                title="Comparar de novo com o servidor"
+                                            >
+                                                <RefreshCw size={14} />
+                                            </button>
+                                        }
+                                    >
+                                        {!diferencasPorGrupo && !comparandoSync && (
+                                            <p className="hud-tag config-nota">Teste a conexao acima pra ver o que esta diferente antes de enviar.</p>
+                                        )}
+                                        {GRUPOS_SINCRONIZACAO.map((grupo) => {
+                                            const diff = diferencasPorGrupo?.[grupo.chave];
+                                            const expandido = detalheAbertoGrupo === grupo.chave;
+                                            const resumoPartes = diff
+                                                ? [
+                                                      diff.novos.length ? `${diff.novos.length} novo(s)` : null,
+                                                      diff.modificados.length ? `${diff.modificados.length} modificado(s)` : null,
+                                                      diff.removidos.length ? `${diff.removidos.length} so no servidor` : null,
+                                                  ].filter(Boolean)
+                                                : [];
+
+                                            return (
+                                                <div key={grupo.chave} style={{ borderBottom: '1px solid var(--cor-borda)', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
+                                                    <div className="config-linha" style={{ justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                        <span className="config-linha__titulo">
+                                                            {grupo.rotulo}
+                                                            {grupo.perigoso && (
+                                                                <span className="hud-tag" style={{ color: 'var(--cor-erro)', marginLeft: '0.5rem' }}>
+                                                                    substitui o login
+                                                                </span>
+                                                            )}
                                                         </span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            {diff &&
+                                                                (diff.diferente ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="hud-tag"
+                                                                        style={{ color: 'var(--cor-alerta)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                                                                        onClick={() => setDetalheAbertoGrupo(expandido ? null : grupo.chave)}
+                                                                    >
+                                                                        {resumoPartes.join(', ')} {expandido ? '▲' : '▼'}
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="hud-tag" style={{ color: 'var(--cor-sucesso)' }}>
+                                                                        Igual ao servidor
+                                                                    </span>
+                                                                ))}
+                                                            <button
+                                                                className="botao-primario"
+                                                                type="button"
+                                                                onClick={() => prepararEnvioSincronizacao(grupo.chave)}
+                                                                disabled={!ipSincronizacao.trim() || enviandoSync}
+                                                            >
+                                                                <Send size={14} />
+                                                                Enviar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    {expandido && diff && (
+                                                        <div className="hud-tag config-nota" style={{ marginTop: '0.35rem' }}>
+                                                            {diff.novos.length > 0 && <div>+ Novos aqui, nao existem no servidor: {diff.novos.join(', ')}</div>}
+                                                            {diff.modificados.length > 0 && <div>~ Diferentes do servidor: {diff.modificados.join(', ')}</div>}
+                                                            {diff.removidos.length > 0 && (
+                                                                <div>- So existem no servidor (nao existem mais aqui): {diff.removidos.join(', ')}</div>
+                                                            )}
+                                                        </div>
                                                     )}
-                                                </span>
-                                                <button
-                                                    className="botao-primario"
-                                                    type="button"
-                                                    onClick={() => prepararEnvioSincronizacao(grupo.chave)}
-                                                    disabled={!ipSincronizacao.trim() || enviandoSync}
-                                                >
-                                                    <Send size={14} />
-                                                    Enviar
-                                                </button>
-                                            </div>
-                                        ))}
+                                                </div>
+                                            );
+                                        })}
                                     </CartaoSecao>
                                 )}
                             </>
@@ -1820,14 +1977,28 @@ export default function ModalConfiguracoes({
                         </p>
                         <div className="status-modulo__lista">
                             {confirmacaoSync.resumo.map((item) => (
-                                <div key={item.rotulo} className="status-modulo__linha">
-                                    <span className="hud-tag">
-                                        {item.rotulo}
-                                        {item.perigoso && (
-                                            <span style={{ color: 'var(--cor-erro)', marginLeft: '0.5rem' }}>(substitui o login de la)</span>
-                                        )}
-                                    </span>
-                                    <span className="status-modulo__valor hud-mono">{item.total} registro(s)</span>
+                                <div key={item.rotulo}>
+                                    <div className="status-modulo__linha">
+                                        <span className="hud-tag">
+                                            {item.rotulo}
+                                            {item.perigoso && (
+                                                <span style={{ color: 'var(--cor-erro)', marginLeft: '0.5rem' }}>(substitui o login de la)</span>
+                                            )}
+                                        </span>
+                                        <span className="status-modulo__valor hud-mono">{item.total} registro(s)</span>
+                                    </div>
+                                    {item.diff && !item.diff.diferente && (
+                                        <p className="hud-tag config-nota" style={{ color: 'var(--cor-sucesso)', margin: '0.15rem 0 0' }}>
+                                            Igual ao servidor — enviar mesmo assim nao muda nada de fato.
+                                        </p>
+                                    )}
+                                    {item.diff && item.diff.diferente && (
+                                        <p className="hud-tag config-nota" style={{ margin: '0.15rem 0 0' }}>
+                                            {item.diff.novos.length > 0 && <>+ Novos: {item.diff.novos.join(', ')}. </>}
+                                            {item.diff.modificados.length > 0 && <>~ Modificados: {item.diff.modificados.join(', ')}. </>}
+                                            {item.diff.removidos.length > 0 && <>- So no servidor: {item.diff.removidos.join(', ')}.</>}
+                                        </p>
+                                    )}
                                 </div>
                             ))}
                         </div>
