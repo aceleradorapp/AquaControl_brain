@@ -346,6 +346,7 @@ export default function ModulosControladores({
                 statusAtual={statusModulo}
                 onFechar={() => setModalEditarAberto(false)}
                 onSalvo={onAtualizarModulo}
+                onStatusAtualizado={() => abrirStatusModulo(moduloClicado)}
                 onRenomeadoSensores={onRenomeadoSensores}
                 registrarLog={registrarLog}
             />

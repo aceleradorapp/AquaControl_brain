@@ -21,7 +21,7 @@ import ModalHud from './ModalHud';
 // ver "salvar" abaixo), mas nao tem mais NENHUMA interface pra edita-lo: a tela principal do
 // AquaControl_OS hoje so mostra 3 arcos fixos com rotulos estaticos (nao le "nome"/"nomeDisplay"
 // de nenhum dispositivo), entao esse campo ficou orfao — nao precisa de UI nova pra ele.
-export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFechar, onSalvo, onRenomeadoSensores, registrarLog }) {
+export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFechar, onSalvo, onStatusAtualizado, onRenomeadoSensores, registrarLog }) {
     const [nome, setNome] = useState('');
     const [hostname, setHostname] = useState('');
     const [potenciaBaseWatts, setPotenciaBaseWatts] = useState('');
@@ -94,6 +94,10 @@ export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFecha
                 const dados = await resposta.json();
                 moduloAtualizado = dados;
                 onSalvo?.(dados);
+                // Este PUT tambem reenvia o handshake pro ESP (ver realizarHandshake em
+                // modulosController.js) — sem isso o "Backend salvo (NVS)" na tela de status
+                // ficava com o valor antigo ate o usuario sair e voltar na tela.
+                onStatusAtualizado?.();
                 if (nomeMudou) registrarLog?.(`Modulo renomeado para "${nome.trim()}".`, 'sucesso');
                 if (potenciaBaseMudou) registrarLog?.(`Potencia base de "${dados.nome}" ajustada para ${potenciaBaseNormalizada ?? 'nao configurada'}${potenciaBaseNormalizada !== null ? 'W' : ''}.`, 'sucesso');
             }
@@ -167,6 +171,7 @@ export default function ModalEditarModulo({ aberto, modulo, statusAtual, onFecha
 
             if (dados.handshake?.sucesso) {
                 registrarLog?.(`IP do backend reenviado com sucesso para "${modulo.nome}".`, 'sucesso');
+                onStatusAtualizado?.();
             } else {
                 registrarLog?.(`Modulo "${modulo.nome}" nao respondeu ao reenvio: ${dados.handshake?.motivo ?? 'sem detalhes.'}`, 'erro');
             }
