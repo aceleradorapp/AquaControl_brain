@@ -11,10 +11,12 @@ import {
     RefreshCw,
     RotateCcw,
     Search,
+    Send,
     Thermometer,
     Trash2,
     Unlock,
     Upload,
+    Wifi,
     X,
 } from 'lucide-react';
 import ModalHud from './ModalHud';
@@ -22,6 +24,31 @@ import ModalEquipamentoAutomacao from './ModalEquipamentoAutomacao';
 import PreviewTelaProtecao from './PreviewTelaProtecao';
 import { CampoNumero, CampoSelect, CampoToggle, CartaoSecao, LinhaConfiguracao } from './CamposConfiguracao';
 import { CHAVE_TOKEN_MASTER } from '../App';
+
+// Sincronizar com Servidor — mesmo mecanismo de Exportar/Importar (GET/POST
+// /api/configuracoes/backup|restaurar), so que direto de maquina pra maquina em vez de
+// arquivo: busca o backup LOCAL, recorta so as tabelas do(s) grupo(s) escolhido(s), e manda
+// pro IP digitado (CORS ja aberto no backend, ver server.js). "admin" fica de fora do botao
+// "Enviar Tudo" por padrao seria arriscado demais silencioso — mas o usuario pediu que
+// aparecesse como bloco individual mesmo assim, com aviso proprio (ver GRUPOS_SINCRONIZACAO).
+const CHAVE_LOCALSTORAGE_SYNC_IP = 'aquacontrol_sync_ip';
+const CHAVE_LOCALSTORAGE_SYNC_PORTA = 'aquacontrol_sync_porta';
+
+const GRUPOS_SINCRONIZACAO = [
+    { chave: 'fauna', rotulo: 'Gestao de Fauna', tabelas: ['fauna'] },
+    { chave: 'modulos', rotulo: 'Modulos & Mapeamento de Portas', tabelas: ['modulos', 'portas_mapeamento'] },
+    { chave: 'temas', rotulo: 'Temas', tabelas: ['temas', 'temas_reles'] },
+    { chave: 'agendamentos', rotulo: 'Agendamentos', tabelas: ['agendamentos', 'agendamentos_horarios'] },
+    { chave: 'sensores', rotulo: 'Sensores Personalizados', tabelas: ['sensores_personalizados', 'config_display_sensores'] },
+    { chave: 'display', rotulo: 'Configuracao do Display', tabelas: ['config_display'] },
+    {
+        chave: 'configuracoes',
+        rotulo: 'Configuracoes Gerais & Calibracoes',
+        tabelas: ['configuracoes_gerais', 'faixas_seguras', 'calibracao_fluxo', 'equipamentos_automacao'],
+    },
+    { chave: 'qrcodes', rotulo: 'QR Codes', tabelas: ['qrcodes'] },
+    { chave: 'admin', rotulo: 'Conta de Admin (login)', tabelas: ['admin_conta'], perigoso: true },
+];
 
 // Self-Update do sistema (git pull + npm install + build + pm2 restart) exige o token JWT no
 // header Authorization, mesma guarda de /api/fauna (ver ModalGestaoFauna.jsx) — a rota
@@ -37,6 +64,7 @@ const CATEGORIAS = [
     { chave: 'sensores', rotulo: 'Sensores & Telemetria', icone: Thermometer },
     { chave: 'atuadores', rotulo: 'Atuadores & Controle', icone: Power },
     { chave: 'armazenamento', rotulo: 'Armazenamento e Integracao', icone: Database },
+    { chave: 'sincronizacao', rotulo: 'Sincronizar com Servidor', icone: Send },
 ];
 
 // Temas visuais (22-espc, ver theme.css) — "cores" e so pro preview de 3 pontinhos no
@@ -146,6 +174,13 @@ export default function ModalConfiguracoes({
     const [atualizando, setAtualizando] = useState(false);
     const [mensagemAtualizacao, setMensagemAtualizacao] = useState('');
     const [erroAtualizacao, setErroAtualizacao] = useState('');
+
+    const [ipSincronizacao, setIpSincronizacao] = useState(() => localStorage.getItem(CHAVE_LOCALSTORAGE_SYNC_IP) ?? '');
+    const [portaSincronizacao, setPortaSincronizacao] = useState(() => localStorage.getItem(CHAVE_LOCALSTORAGE_SYNC_PORTA) ?? '5000');
+    const [testandoConexaoSync, setTestandoConexaoSync] = useState(false);
+    const [statusConexaoSync, setStatusConexaoSync] = useState(null);
+    const [enviandoSync, setEnviandoSync] = useState(false);
+    const [confirmacaoSync, setConfirmacaoSync] = useState(null);
 
     const [authConfig, setAuthConfig] = useState({ bloquearCadastro: false });
     const [novaMasterKey, setNovaMasterKey] = useState('');
@@ -727,6 +762,83 @@ export default function ModalConfiguracoes({
         } catch (erro) {
             setErroAtualizacao(erro.message);
             setAtualizando(false);
+        }
+    }
+
+    function urlSincronizacao(caminho) {
+        return `http://${ipSincronizacao.trim()}:${portaSincronizacao.trim() || '5000'}${caminho}`;
+    }
+
+    function salvarDestinoSincronizacao(ip, porta) {
+        setIpSincronizacao(ip);
+        setPortaSincronizacao(porta);
+        localStorage.setItem(CHAVE_LOCALSTORAGE_SYNC_IP, ip);
+        localStorage.setItem(CHAVE_LOCALSTORAGE_SYNC_PORTA, porta);
+    }
+
+    async function testarConexaoSincronizacao() {
+        setTestandoConexaoSync(true);
+        setStatusConexaoSync(null);
+        try {
+            const resposta = await fetch(urlSincronizacao('/api/auth/status'), { signal: AbortSignal.timeout(5000) });
+            if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+            const dados = await resposta.json();
+            setStatusConexaoSync({
+                ok: true,
+                mensagem: dados.existeAdmin ? 'Servidor encontrado — tem conta de admin configurada.' : 'Servidor encontrado — sem conta de admin ainda.',
+            });
+        } catch (erro) {
+            setStatusConexaoSync({ ok: false, mensagem: `Nao foi possivel conectar: ${erro.message}` });
+        } finally {
+            setTestandoConexaoSync(false);
+        }
+    }
+
+    // Busca o backup LOCAL (ja existe, ver exportarBackup acima), recorta so as tabelas do(s)
+    // grupo(s) escolhido(s) e monta o resumo pra tela de confirmacao — nada e enviado ainda.
+    async function prepararEnvioSincronizacao(chaveGrupoOuTudo) {
+        try {
+            const backupCompleto = await fetch('/api/configuracoes/backup').then((r) => r.json());
+            const grupos = chaveGrupoOuTudo === 'tudo' ? GRUPOS_SINCRONIZACAO : GRUPOS_SINCRONIZACAO.filter((g) => g.chave === chaveGrupoOuTudo);
+
+            const tabelasParaEnviar = {};
+            const resumo = grupos.map((grupo) => {
+                let total = 0;
+                for (const tabela of grupo.tabelas) {
+                    const linhas = backupCompleto.tabelas[tabela] ?? [];
+                    tabelasParaEnviar[tabela] = linhas;
+                    total += linhas.length;
+                }
+                return { rotulo: grupo.rotulo, total, perigoso: grupo.perigoso };
+            });
+
+            setConfirmacaoSync({ grupos, tabelas: tabelasParaEnviar, resumo });
+        } catch (erro) {
+            registrarLog?.(`Falha ao preparar sincronizacao: ${erro.message}`, 'erro');
+        }
+    }
+
+    async function confirmarEnvioSincronizacao() {
+        if (!confirmacaoSync) return;
+        const { tabelas, resumo } = confirmacaoSync;
+        const destino = `${ipSincronizacao}:${portaSincronizacao}`;
+
+        setEnviandoSync(true);
+        try {
+            const resposta = await fetch(urlSincronizacao('/api/configuracoes/restaurar'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tabelas }),
+                signal: AbortSignal.timeout(20000),
+            });
+            const dados = await resposta.json();
+            if (!resposta.ok) throw new Error(dados.erro ?? 'Falha ao enviar.');
+            registrarLog?.(`Enviado para ${destino}: ${resumo.map((r) => r.rotulo).join(', ')}.`, 'sucesso');
+        } catch (erro) {
+            registrarLog?.(`Falha ao sincronizar com ${destino}: ${erro.message}`, 'erro');
+        } finally {
+            setEnviandoSync(false);
+            setConfirmacaoSync(null);
         }
     }
 
@@ -1576,6 +1688,96 @@ export default function ModalConfiguracoes({
                                 )}
                             </>
                         )}
+
+                        {categoriaAtiva === 'sincronizacao' && (
+                            <>
+                                {corresponde('Servidor', 'Destino', 'IP', 'Conexao', 'Testar') && (
+                                    <CartaoSecao titulo="Servidor de Destino">
+                                        <p className="hud-tag config-nota">
+                                            Envia dados desta maquina direto pro servidor abaixo (mesma rede local) — como o
+                                            Exportar/Importar de "Armazenamento", so sem precisar baixar/subir arquivo.
+                                        </p>
+                                        <LinhaConfiguracao titulo="IP do Servidor">
+                                            <input
+                                                className="hud-input"
+                                                placeholder="192.168.98.14"
+                                                value={ipSincronizacao}
+                                                onChange={(e) => salvarDestinoSincronizacao(e.target.value, portaSincronizacao)}
+                                            />
+                                        </LinhaConfiguracao>
+                                        <LinhaConfiguracao titulo="Porta">
+                                            <input
+                                                className="hud-input"
+                                                style={{ maxWidth: '6rem' }}
+                                                placeholder="5000"
+                                                value={portaSincronizacao}
+                                                onChange={(e) => salvarDestinoSincronizacao(ipSincronizacao, e.target.value)}
+                                            />
+                                        </LinhaConfiguracao>
+                                        <div className="config-linha" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+                                            <button
+                                                className="botao-primario"
+                                                type="button"
+                                                onClick={testarConexaoSincronizacao}
+                                                disabled={!ipSincronizacao.trim() || testandoConexaoSync}
+                                            >
+                                                <Wifi size={14} />
+                                                {testandoConexaoSync ? 'Testando...' : 'Testar Conexao'}
+                                            </button>
+                                            {statusConexaoSync && (
+                                                <span className="hud-tag" style={{ color: statusConexaoSync.ok ? 'var(--cor-sucesso)' : 'var(--cor-erro)' }}>
+                                                    {statusConexaoSync.mensagem}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </CartaoSecao>
+                                )}
+
+                                {corresponde('Enviar Tudo', 'Sincronizar Tudo') && (
+                                    <CartaoSecao titulo="Enviar Tudo">
+                                        <p className="hud-tag config-nota">
+                                            Envia todos os blocos abaixo de uma vez — util na primeira sincronizacao com um servidor novo.
+                                            Mostra uma tela de confirmacao antes de enviar de verdade.
+                                        </p>
+                                        <button
+                                            className="botao-primario"
+                                            type="button"
+                                            onClick={() => prepararEnvioSincronizacao('tudo')}
+                                            disabled={!ipSincronizacao.trim() || enviandoSync}
+                                        >
+                                            <Send size={14} />
+                                            Enviar Tudo
+                                        </button>
+                                    </CartaoSecao>
+                                )}
+
+                                {corresponde('Fauna', 'Modulos', 'Temas', 'Agendamentos', 'Sensores', 'QR', 'Admin', 'Display', 'Calibracoes') && (
+                                    <CartaoSecao titulo="Enviar por Categoria">
+                                        {GRUPOS_SINCRONIZACAO.map((grupo) => (
+                                            <div key={grupo.chave} className="config-linha" style={{ justifyContent: 'space-between', gap: '0.75rem' }}>
+                                                <span className="config-linha__titulo">
+                                                    {grupo.rotulo}
+                                                    {grupo.perigoso && (
+                                                        <span className="hud-tag" style={{ color: 'var(--cor-erro)', marginLeft: '0.5rem' }}>
+                                                            substitui o login
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <button
+                                                    className="botao-primario"
+                                                    type="button"
+                                                    onClick={() => prepararEnvioSincronizacao(grupo.chave)}
+                                                    disabled={!ipSincronizacao.trim() || enviandoSync}
+                                                >
+                                                    <Send size={14} />
+                                                    Enviar
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </CartaoSecao>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     {sujo && (
@@ -1602,6 +1804,44 @@ export default function ModalConfiguracoes({
                 dadosSensores={dadosSensores}
                 onSalvo={aoSalvarEquipamento}
             />
+
+            {/* Confirmacao de Sincronizar com Servidor (pedido explicito: sempre mostrar pra
+                onde vai e o que vai, tanto pros blocos individuais quanto pro "Enviar Tudo",
+                inclusive — ou principalmente — pro bloco "admin" que troca o login de la). */}
+            <ModalHud aberto={!!confirmacaoSync} titulo="Confirmar Envio" tag="SINCRONIZAR COM SERVIDOR" onFechar={() => setConfirmacaoSync(null)}>
+                {confirmacaoSync && (
+                    <>
+                        <p className="hud-tag config-nota">
+                            Isso vai <strong>substituir</strong> os dados abaixo no servidor{' '}
+                            <span className="hud-mono">
+                                {ipSincronizacao}:{portaSincronizacao}
+                            </span>{' '}
+                            pelos desta maquina. Esta acao nao pode ser desfeita.
+                        </p>
+                        <div className="status-modulo__lista">
+                            {confirmacaoSync.resumo.map((item) => (
+                                <div key={item.rotulo} className="status-modulo__linha">
+                                    <span className="hud-tag">
+                                        {item.rotulo}
+                                        {item.perigoso && (
+                                            <span style={{ color: 'var(--cor-erro)', marginLeft: '0.5rem' }}>(substitui o login de la)</span>
+                                        )}
+                                    </span>
+                                    <span className="status-modulo__valor hud-mono">{item.total} registro(s)</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="modal-hud__acoes">
+                            <button className="botao-icone" type="button" onClick={() => setConfirmacaoSync(null)} disabled={enviandoSync}>
+                                Cancelar
+                            </button>
+                            <button className="botao-primario" type="button" onClick={confirmarEnvioSincronizacao} disabled={enviandoSync}>
+                                {enviandoSync ? 'Enviando...' : 'Confirmar Envio'}
+                            </button>
+                        </div>
+                    </>
+                )}
+            </ModalHud>
         </ModalHud>
     );
 }

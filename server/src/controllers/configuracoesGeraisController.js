@@ -1,5 +1,6 @@
 const db = require('../database/db');
 const { obterUltimaLeitura } = require('../services/sensoresTelemetriaService');
+const { registrarLog } = require('../services/logService');
 
 // Configuracoes Globais do Sistema (19-espc) — armazem generico chave/valor
 // (configuracoes_gerais) pra preferencias que nao justificam uma tabela propria. "PADRAO" e
@@ -221,6 +222,8 @@ function restaurarBackup(req, res) {
         return res.status(400).json({ erro: 'Formato de backup invalido — esperado { tabelas: {...} }.' });
     }
 
+    const tabelasAfetadas = [];
+
     db.exec('BEGIN');
     try {
         for (const tabela of TABELAS_BACKUP) {
@@ -234,12 +237,28 @@ function restaurarBackup(req, res) {
                 const marcadores = colunas.map(() => '?').join(', ');
                 db.prepare(`INSERT INTO ${tabela} (${colunas.join(', ')}) VALUES (${marcadores})`).run(...colunas.map((c) => linha[c]));
             }
+            tabelasAfetadas.push(`${tabela} (${linhas.length})`);
         }
         db.exec('COMMIT');
     } catch (erro) {
         db.exec('ROLLBACK');
         return res.status(500).json({ erro: `Falha ao restaurar backup: ${erro.message}` });
     }
+
+    // Origem da requisicao (IP de quem chamou) — as rotas de configuracoes nao tem
+    // autenticacao (decisao ja tomada no 33-espc), entao isso e o unico jeito de responder
+    // depois "foi eu mesmo sincronizando de outra maquina, ou foi outra coisa" ao olhar o
+    // System Log. Restauracao PARCIAL (Sincronizar com Servidor, so alguns grupos por vez) e
+    // restauracao COMPLETA (Exportar/Importar arquivo) passam pelo mesmo endpoint — a lista de
+    // tabelas afetadas no log distingue as duas.
+    const origem = req.ip || req.socket?.remoteAddress || 'desconhecida';
+    registrarLog(
+        `Configuracao restaurada a partir de ${origem}: ${tabelasAfetadas.join(', ') || 'nenhuma tabela'}.`,
+        'alerta',
+        'sistema',
+        null,
+        'manual'
+    );
 
     res.json({ status: 'ok' });
 }
